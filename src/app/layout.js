@@ -1,15 +1,11 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Providers from "./providers";
+import HeaderGate from "./components/HeaderGate";
+import ScrollTopButton from "./components/ScrollTopButton"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata = {
   title: "Create Next App",
@@ -19,10 +15,12 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0F172B] text-slate-100`}>
+        <Providers>
+          <HeaderGate />
+          <main className="min-h-[calc(100dvh-4rem)]">{children}</main>
+        </Providers>
+        <ScrollTopButton />
       </body>
     </html>
   );
