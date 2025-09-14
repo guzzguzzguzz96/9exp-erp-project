@@ -1,147 +1,109 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
-import { Search, Users, ChevronDown, ChevronRight } from "lucide-react";
-import { levelsForDept } from "@/lib/hr/constants";
+import Link from "next/link";
+import { Search } from "lucide-react";
 
-export default function DepartmentsClient({ items }) {
+const LEVEL_LABEL = {
+  1: "Newbie",
+  2: "Junior",
+  3: "Senior",
+  4: "Lead",
+  5: "Manager",
+  6: "CEO/CTO",
+};
+
+export default function DepartmentsClient({ initialItems, canEdit = false }) {
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState(() =>
-    Object.fromEntries(items.map((x) => [x.code, false]))
-  );
 
-  const filtered = useMemo(() => {
+  const items = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return items;
-    return items.filter(
-      (d) =>
-        d.code.toLowerCase().includes(s) ||
-        d.fullName.toLowerCase().includes(s)
-    );
-  }, [q, items]);
+    if (!s) return initialItems;
+    return initialItems.filter((d) => {
+      const name = d.name?.toLowerCase() ?? "";
+      const code = d.code?.toLowerCase() ?? "";
+      const desc = d.description?.toLowerCase() ?? "";
+      return name.includes(s) || code.includes(s) || desc.includes(s);
+    });
+  }, [q, initialItems]);
 
   return (
-    <div className="mt-6">
+    <div className="space-y-4">
       {/* Search */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+      <div className="relative">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search department code, full name…"
-          className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-indigo-400/40
-                     text-slate-200 placeholder:text-slate-500 px-10 py-2.5 outline-none"
+          placeholder="Search name, code, description..."
+          className="w-full rounded-xl bg-white/5 text-slate-200 placeholder:text-slate-500 border border-white/10 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
         />
+        <Search className="absolute right-3 top-2.5 h-5 w-5 text-slate-500" />
       </div>
 
-      {/* List */}
-      <ul className="space-y-3">
-        {filtered.map((d) => {
-          const lvDefs = levelsForDept(d.code);
-          return (
-            <li key={d.code} className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
-              {/* Header */}
-              <button
-                onClick={() => setOpen((prev) => ({ ...prev, [d.code]: !prev[d.code] }))}
-                className="w-full px-4 py-3 flex items-center gap-3 text-left"
-              >
-                <span
-                  className="shrink-0 h-9 w-9 grid place-items-center rounded-lg text-[12px] font-semibold text-white ring-1 ring-white/10"
-                  style={{ background: d.color }}
+      {/* Grid */}
+      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {items.map((d) => (
+          <li
+            key={d._id}
+            className="rounded-2xl border border-white/10 bg-[#0F172B] p-4 hover:border-indigo-500/30 transition"
+          >
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-flex h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: d.color || "#6366f1" }}
+                    aria-hidden
+                  />
+                  <span className="text-slate-300 text-sm">{d.code}</span>
+                </div>
+                <h3 className="text-lg font-medium text-slate-100">
+                  {d.name}
+                </h3>
+                {/* จำนวนพนักงาน */}
+                <div className="text-xs text-slate-400">
+                  {Number(d._empCount ?? 0)}{" "}
+                  {Number(d._empCount ?? 0) === 1 ? "person" : "people"}
+                </div>
+              </div>
+
+              {canEdit && (
+                <Link
+                  href={`/dashboard/hrm/departments/${d._id}/edit`}
+                  className="text-indigo-300 hover:text-indigo-200 text-sm"
                 >
-                  {d.code}
-                </span>
-
-                <div className="min-w-0">
-                  <p className="text-slate-100 font-medium leading-5 truncate">
-                    {d.fullName}
-                  </p>
-                  <p className="text-slate-400 text-sm">
-                    {d.total} member{d.total !== 1 ? "s" : ""}
-                  </p>
-                </div>
-
-                {/* Level chips summary */}
-                <div className="ml-auto flex items-center gap-2">
-                  {lvDefs.map((lv) => {
-                    const count = d.levelCount[lv.value] || 0;
-                    return (
-                      <span
-                        key={lv.value}
-                        className={`text-[12px] rounded-lg px-2 py-1 ring-1 ring-inset
-                          ${count > 0
-                            ? "bg-indigo-500/15 text-indigo-300 ring-indigo-400/20"
-                            : "bg-white/5 text-slate-400 ring-white/10"}`}
-                        title={lv.label}
-                      >
-                        {lv.label.split(" ")[0]}: {count}
-                      </span>
-                    );
-                  })}
-
-                  <span className="ml-1 inline-flex items-center gap-1 text-slate-300 text-sm bg-white/5 rounded-lg px-2.5 py-1 ring-1 ring-white/10">
-                    <Users size={15} />
-                    {d.total}
-                  </span>
-
-                  <span className="text-slate-400">
-                    {open[d.code] ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                  </span>
-                </div>
-              </button>
-
-              {/* Members list */}
-              {open[d.code] && (
-                <div className="px-4 pb-3">
-                  {d.members.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-slate-400">
-                      No members
-                    </div>
-                  ) : (
-                    <ul className="divide-y divide-white/10">
-                      {d.members.map((m) => (
-                        <li key={m.id} className="py-3 flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-xl overflow-hidden ring-1 ring-white/10 bg-white/5">
-                            <Image
-                              src={m.photo || "/avatar-default.png"}
-                              alt={m.name}
-                              width={36}
-                              height={36}
-                              className="h-9 w-9 object-cover"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-slate-100 leading-5 truncate">
-                              {m.name}{" "}
-                              {m.nick ? (
-                                <span className="text-slate-400 text-sm">({m.nick})</span>
-                              ) : null}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2 text-[12px] text-slate-400">
-                              <span className="rounded-md bg-white/5 px-2 py-0.5 ring-1 ring-white/10">
-                                Emp ID: {m.empId || "-"}
-                              </span>
-                              {m.position ? (
-                                <span className="rounded-md bg-white/5 px-2 py-0.5 ring-1 ring-white/10">
-                                  {m.position}
-                                </span>
-                              ) : null}
-                              <span className="rounded-md px-2 py-0.5 ring-1 ring-inset
-                                  bg-indigo-500/15 text-indigo-300 ring-indigo-400/20">
-                                {m.levelName}
-                              </span>
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                  Edit
+                </Link>
               )}
-            </li>
-          );
-        })}
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(d.allowLevels ?? d.allowedLevels ?? []).map((lv) => (
+                <span
+                  key={lv}
+                  className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-300 ring-1 ring-white/10"
+                  title={`Level ${lv}`}
+                >
+                  {LEVEL_LABEL[lv] ?? lv}
+                </span>
+              ))}
+            </div>
+
+            {d.description ? (
+              <p className="mt-3 text-sm text-slate-400 line-clamp-2">
+                {d.description}
+              </p>
+            ) : null}
+          </li>
+        ))}
+
+        {items.length === 0 && (
+          <li className="col-span-full">
+            <div className="rounded-xl border border-dashed border-white/10 p-10 text-center text-slate-400">
+              ไม่พบข้อมูลที่ค้นหา
+            </div>
+          </li>
+        )}
       </ul>
     </div>
   );

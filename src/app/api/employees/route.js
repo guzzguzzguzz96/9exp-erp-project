@@ -1,145 +1,148 @@
+// src/app/api/employees/route.js
+import { NextResponse } from "next/server";
+import mongoose, { Types } from "mongoose";
 import dbConnect from "@/lib/mongoose";
+import Department from "@/lib/models/Department";
 import Employee from "@/lib/models/Employee";
-import Counter from "@/lib/models/Counter";
 import User from "@/lib/models/User";
-import bcrypt from "bcryptjs";
-import { requireRoleAPI } from "@/lib/authz";
-
-export const runtime = "nodejs";
+import Counter from "@/lib/models/Counter";
+import { hash } from "bcryptjs";
+import { uploadFromBuffer } from "@/lib/cloudinary";
 
 export async function POST(req) {
-  const gate = await requireRoleAPI(["hr", "superadmin"]);
-  if (gate.res) return gate.res; // คืน 401/403 ทันที
-
-  const { session } = gate; // ใช้ session.user ได้
-  await dbConnect();
-
   try {
-    const body = await req.json();
-    const {
+    await dbConnect();
+
+    const form = await req.formData();
+    const g = (k, d = "") => form.get(k)?.toString()?.trim?.() ?? d;
+
+    // --- validate dep/pos ---
+    const departmentId = g("departmentId");
+    const positionId   = g("positionId");
+    if (!mongoose.isValidObjectId(departmentId))
+      return NextResponse.json({ ok:false, message:"departmentId invalid" }, { status:400 });
+    if (!mongoose.isValidObjectId(positionId))
+      return NextResponse.json({ ok:false, message:"positionId invalid" }, { status:400 });
+
+    const dep = await Department.findById(departmentId).lean();
+    if (!dep)  return NextResponse.json({ ok:false, message:"department not found" }, { status:404 });
+    const pos = (dep.positions || []).find(p => String(p._id) === String(positionId));
+    if (!pos)  return NextResponse.json({ ok:false, message:"position invalid" }, { status:400 });
+
+    const department = dep.code || dep.name || "UNKNOWN";
+    const position   = pos.name;
+    const level      = Number(pos.level ?? 0);
+
+    // --- fields ---
+    const firstName  = g("firstName");
+    const lastName   = g("lastName");
+    const nickName   = g("nickName");
+    const dateOfJoin = g("dateOfJoin");
+    const phone      = g("phone");
+    const email      = g("email");
+    const birthday   = g("birthday");
+    const address    = g("address");
+    const genderMap  = { "ชาย":"male","หญิง":"female","อื่น ๆ":"other", male:"male", female:"female", other:"other" };
+    const gender     = genderMap[g("gender")] || "other";
+
+    if (!firstName || !lastName || !dateOfJoin || !phone || !email || !birthday || !address)
+      return NextResponse.json({ ok:false, message:"ข้อมูลจำเป็นไม่ครบ" }, { status:400 });
+
+    const emergency = {
+      firstName: g("emergency.firstName"),
+      lastName: g("emergency.lastName"),
+      relationship: g("emergency.relationship"),
+      phone: g("emergency.phone"),
+      email: g("emergency.email"),
+      address: g("emergency.address"),
+    };
+
+    const privateInfo = {
+      bankAccountName: g("privateInfo.bankAccountName"),
+      bankAccountNo:   g("privateInfo.bankAccountNo"),
+      bankBranch:      g("privateInfo.bankBranch"),
+      bankName:        g("privateInfo.bankName"),
+      bankCode:        g("privateInfo.bankCode"),
+    };
+
+    // --- upload photo (optional) ---
+    const photoFile = form.get("photo");
+    let photoUrl = "";
+    let photoPublicId = "";
+    if (photoFile && typeof photoFile === "object") {
+      const buffer = Buffer.from(await photoFile.arrayBuffer());
+      const uploaded = await uploadFromBuffer(buffer, {
+        folder: "employees",
+        filename_override: `${Date.now()}_${firstName}_${lastName}`,
+      });
+      photoUrl = uploaded.secure_url;
+      photoPublicId = uploaded.public_id || "";
+    }
+
+    // --- running ids ---
+    const counterDoc = await Counter.findByIdAndUpdate(
+      "employee",
+      { $inc: { seq: 1 } },
+      { upsert: true, new: true }
+    ).lean();
+    const empAutoId = counterDoc.seq;
+
+    const empIdPrefix = dep.empIdPrefix || dep.code || "EMP";
+    const last = await Employee.findOne({ department }).sort({ createdAt: -1 }).lean();
+    const lastRun = last?.empId?.split("-")?.[1] ? Number(last.empId.split("-")[1]) : 0;
+    const empId = `${empIdPrefix}-${String(lastRun + 1).padStart(4, "0")}`;
+
+    // --- create user? ---
+    const createLogin     = g("createLogin").toLowerCase() === "true";
+    const accountEmail    = g("accountEmail");
+    const password        = g("password");
+    const passwordConfirm = g("passwordConfirm");
+    const role            = g("role") || "employee";
+
+    let createdUser = null;
+    if (createLogin) {
+      if (!accountEmail || !password || password !== passwordConfirm) {
+        return NextResponse.json({ ok:false, message:"ข้อมูลล็อกอินไม่ถูกต้อง" }, { status:400 });
+      }
+      createdUser = await User.create({
+        email: accountEmail,
+        passwordHash: await hash(password, 10),
+        role,
+        status: "active",
+      });
+    }
+
+    // --- create employee (link userId ถ้ามี) ---
+    const employee = await Employee.create({
+      empId,
+      empAutoId,
       firstName,
       lastName,
       nickName,
+      departmentId: new Types.ObjectId(departmentId),
       department,
       position,
+      level,
       dateOfJoin,
       phone,
-      email,
+      email: createLogin ? accountEmail : email,   // ให้ตรงบัญชีล็อกอิน
       birthday,
       address,
       gender,
       emergency,
       privateInfo,
-      createAccount,
-      accountPassword,
-      role = "employee",
-    } = body;
-
-    if (
-      !firstName ||
-      !lastName ||
-      !department ||
-      !position ||
-      !dateOfJoin ||
-      !email
-    ) {
-      return Response.json(
-        { error: "required fields missing" },
-        { status: 400 }
-      );
-    }
-
-    await dbConnect();
-
-    // 1) สร้างเลข empAutoId ต่อ prefix แบบ atomic
-    const prefix = body.prefix; // ส่งมาจากฟอร์ม (คำนวณจาก department)
-    if (!prefix)
-      return Response.json({ error: "prefix required" }, { status: 400 });
-
-    const counter = await Counter.findOneAndUpdate(
-      { key: prefix },
-      { $inc: { seq: 1 } },
-      { new: true, upsert: true }
-    );
-    const empAutoId = `${prefix}-${String(counter.seq).padStart(4, "0")}`;
-
-    // 2) ถ้าเลือกสร้างบัญชีล็อกอิน → สร้าง user
-    let createdUser = null;
-    if (createAccount) {
-      const exists = await User.findOne({ email });
-      if (exists)
-        return Response.json({ error: "Email already used" }, { status: 409 });
-
-      const hash = await bcrypt.hash(
-        accountPassword || Math.random().toString(36).slice(-8),
-        10
-      );
-      createdUser = await User.create({
-        name: `${firstName} ${lastName}`.trim(),
-        email,
-        passwordHash: hash,
-        role,
-      });
-    }
-
-    //validate phone and mail
-    const phoneOk = /^\d{10}$/.test(phone || "");
-    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(email || "");
-
-    if (
-      !firstName ||
-      !lastName ||
-      !nickName ||
-      !department ||
-      !position ||
-      !dateOfJoin ||
-      !phone ||
-      !email ||
-      !birthday ||
-      !address ||
-      !gender
-    ) {
-      return Response.json(
-        { error: "required fields missing" },
-        { status: 400 }
-      );
-    }
-    if (!phoneOk)
-      return Response.json(
-        { error: "invalid phone (10 digits)" },
-        { status: 400 }
-      );
-    if (!emailOk)
-      return Response.json({ error: "invalid email" }, { status: 400 });
-
-    // 3) สร้างพนักงาน
-    const employee = await Employee.create({
-      empAutoId,
-      firstName,
-      lastName,
-      nickName,
-      department,
-      position,
-      dateOfJoin,
-      phone,
-      email,
-      birthday,
-      address,
-      gender,
-      photoUrl: body.photoUrl || undefined,
-      emergency: emergency || undefined,
-      privateInfo: privateInfo || undefined,
+      photoUrl,
+      photoPublicId,
       userId: createdUser?._id || undefined,
     });
 
-    return Response.json({
-      ok: true,
-      empAutoId,
-      employeeId: employee._id,
-      userId: createdUser?._id || null,
-    });
-  } catch (e) {
-    console.error("[EMPLOYEE_CREATE]", e);
-    return Response.json({ error: "Server error" }, { status: 500 });
+    if (createdUser) {
+      await User.findByIdAndUpdate(createdUser._id, { employeeId: employee._id });
+    }
+
+    return NextResponse.json({ ok: true, employee }, { status: 201 });
+  } catch (err) {
+    console.error("POST /api/employees error:", err);
+    return NextResponse.json({ ok: false, message: err?.message || "Server error" }, { status: 500 });
   }
 }

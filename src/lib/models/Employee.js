@@ -1,4 +1,4 @@
-import mongoose, { Schema, models } from "mongoose";
+import mongoose, { Schema, models, model } from "mongoose";
 import "server-only";
 
 const EmergencySchema = new Schema(
@@ -25,26 +25,41 @@ const BookbankSchema = new Schema(
 
 const EmployeeSchema = new Schema(
   {
-    empAutoId: { type: String, unique: true }, // เช่น "IT-0001"
+    empAutoId: { type: String, index: true }, // เช่น IT-0001
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
-    nickName: String,
-    department: { type: String, required: true, uppercase: true, trim: true },
-    level: { type: Number, default: 1, min: 1, max: 6 },
-    position: { type: String, required: true },
+    nickName: { type: String },
+    department: { type: String, required: true }, // เช่น "IT"
+    position: { type: String, required: true }, // เช่น "Senior IT Support"
+    level: { type: Number, min: 1, max: 6, required: true }, // 1..6
     dateOfJoin: { type: Date, required: true },
-    phone: String,
-    email: { type: String, required: true, lowercase: true, trim: true },
-    birthday: Date,
-    address: String,
+    birthday:   { type: Date, required: true },
+    phone: { type: String, required: true },
+    email: { type: String, required: true, index: true },
+    address: { type: String },
     gender: { type: String, enum: ["male", "female", "other"] },
+    photoUrl: { type: String },
+    empAutoId: { type: Number, unique: true }, // อย่าให้เป็น null
+    departmentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Department",
+      required: true,
+    },
 
-    photoUrl: { type: String, default: "" },
-    photoPublicId: { type: String, default: "" },
+    emergency: {
+      firstName: String,
+      lastName: String,
+      relationship: String,
+      phone: String,
+      email: String,
+      address: String,
+    },
 
-    emergency: EmergencySchema, // optional
     privateInfo: {
-      bookbank: BookbankSchema, // optional
+      bankAccountName: String,
+      bankAccountNo: String,
+      bankName: String,
+      bankBranch: String,
     },
 
     // ผูกกับ user id ถ้ามีการสร้างบัญชีล็อกอิน
@@ -53,4 +68,4 @@ const EmployeeSchema = new Schema(
   { timestamps: true }
 );
 
-export default models.Employee || mongoose.model("Employee", EmployeeSchema);
+export default models.Employee || model("Employee", EmployeeSchema);

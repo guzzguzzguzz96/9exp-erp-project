@@ -24,3 +24,6 @@ export default async function dbConnect() {
   cached.conn = await cached.promise;
   return cached.conn;
 }
+
+
+console.log(process.env.MONGODB_URI)

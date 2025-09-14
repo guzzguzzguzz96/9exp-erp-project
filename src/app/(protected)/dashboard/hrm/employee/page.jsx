@@ -1,46 +1,36 @@
-import Image from "next/image";
 import Link from "next/link";
 import dbConnect from "@/lib/mongoose";
 import Employee from "@/lib/models/Employee";
+import Department from "@/lib/models/Department"; // ✅ ดึงสีจาก department
 import { requireSessionPage } from "@/lib/authz";
 import EmployeeGroupsClient from "./EmployeeGroupsClient";
 
 export const dynamic = "force-dynamic";
 
-// label ตามที่ตกลง
+// label ตามที่ตกลง (ถ้ามี code ที่ไม่มี label จะ fallback เป็น code เดิม)
 const DEPT_LABEL = {
   MD: "Management / Director",
   HR: "Human Resources",
   AC: "Accounting",
   IT: "Information Technology",
-  SA: "Training Department",
+  TR: "Training Department",
   MK: "Marketing",
   SD: "Software Development",
   AM: "Academic",
   EX: "Executive Office",
   FM: "Facility Management",
-  MD2: "Media Department",
+  ME: "Media Department",
 };
-const DEPT_ORDER = [
-  "MD",
-  "HR",
-  "AC",
-  "IT",
-  "SA",
-  "MK",
-  "SD",
-  "AM",
-  "EX",
-  "FM",
-  "MD2",
-];
+const DEPT_ORDER = ["MD","EX","HR","AC","IT","TR","MK","SD","AM","ME","FM"];
 
 export default async function EmployeeIndexPage() {
   const session = await requireSessionPage();
   const role = session.user.role;
   const canCreate = role !== "employee";
+
   await dbConnect();
 
+  // ✅ ดึงรายชื่อพนักงาน (ข้อมูลเบา ๆ)
   const docs = await Employee.find(
     {},
     "empAutoId firstName lastName nickName department position phone email photoUrl"
@@ -48,7 +38,13 @@ export default async function EmployeeIndexPage() {
     .sort({ department: 1, lastName: 1, firstName: 1 })
     .lean();
 
-  // group by department
+  // ✅ ดึงสีจาก departments: { code, color }
+  const deps = await Department.find({}, "code color").lean();
+  const DEPT_COLORS = Object.fromEntries(
+    deps.map((d) => [d.code || "", d.color || ""])
+  );
+
+  // group by department + เตรียมข้อมูลให้ client
   const groups = {};
   for (const e of docs) {
     const dept = e.department || "UNKNOWN";
@@ -71,9 +67,7 @@ export default async function EmployeeIndexPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-100">Employees</h1>
-          <p className="text-slate-400 text-sm">
-            แสดงรายชื่อพนักงาน แบ่งตามแผนก
-          </p>
+          <p className="text-slate-400 text-sm">แสดงรายชื่อพนักงาน แบ่งตามแผนก</p>
         </div>
         {canCreate && (
           <Link
@@ -90,6 +84,7 @@ export default async function EmployeeIndexPage() {
         groups={groups}
         order={DEPT_ORDER}
         labels={DEPT_LABEL}
+        deptColors={DEPT_COLORS}   // ✅ ส่ง map สีของแผนกไป
       />
     </div>
   );

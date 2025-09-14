@@ -93,7 +93,7 @@ export default function EmployeeCreateForm() {
     } finally {
       setUploading(false);
     }
-  }
+  }  
 
   function clearPhoto() {
     setPreview("");
@@ -610,6 +610,7 @@ export default function EmployeeCreateForm() {
               <option value="employee">employee</option>
               <option value="manager">manager</option>
               <option value="hr">hr</option>
+              <option value="executive">executive</option>
               <option value="it">it</option>
               <option value="payroll">payroll</option>
               <option value="superadmin">superadmin</option>

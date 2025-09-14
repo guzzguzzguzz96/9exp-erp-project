@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ShieldCheck, Send } from "lucide-react";
 
-const ROLES = ["superadmin", "hr", "it", "payroll", "manager", "employee"];
+const ROLES = ["superadmin", "hr", "it", "payroll", "manager", "executive", "employee"];
 
 export default function RoleRequestPage() {
   const [form, setForm] = useState({

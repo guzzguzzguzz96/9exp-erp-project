@@ -1,3 +1,4 @@
+// src/app/(protected)/dashboard/hrm/employee-profile/page.jsx
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -6,7 +7,7 @@ import { getServerSession } from "next-auth";
 import dbConnect from "@/lib/mongoose";
 import Employee from "@/lib/models/Employee";
 import { authOptions } from "@/lib/authOptions";
-import CopyBtn from "./CopyBtn"; // client helper สำหรับคัดลอกเบอร์/อีเมล
+import CopyBtn from "./CopyBtn";
 
 export const dynamic = "force-dynamic";
 
@@ -43,45 +44,54 @@ export default async function EmployeeProfilePage({ searchParams }) {
   if (targetId) {
     e = await Employee.findById(targetId).lean();
   } else {
-    if (session.user.id) {
+    // 1) จาก employeeId ใน session
+    if (session.user.employeeId) {
+      e = await Employee.findById(session.user.employeeId).lean();
+    }
+    // 2) ลิงก์ด้วย userId (ถ้ามีใน session)
+    if (!e && session.user.id) {
       e = await Employee.findOne({ userId: session.user.id }).lean();
     }
-
+    // 3) fallback ด้วยอีเมล
     if (!e && session.user.email) {
       e = await Employee.findOne({
-        email: {
-          $regex: new RegExp(`^${escapeReg(session.user.email)}$`, "i"),
-        },
+        email: { $regex: new RegExp(`^${escapeReg(session.user.email)}$`, "i") },
       }).lean();
     }
   }
 
-  if (!e) {
-    if (["superadmin", "hr"].includes(session.user.role)) {
-      redirect("/dashboard/hrm/employee/create");
-    }
-    notFound();
-  }
+  if (!e) notFound();
+
   const role = session.user?.role ?? "employee";
-  const isSelf = e.email?.toLowerCase() === session.user.email?.toLowerCase();
-  const canSeeAny = ["superadmin", "hr"].includes(role);
 
-  if (
-    !canSeeAny &&
-    e.email?.toLowerCase() !== session.user.email?.toLowerCase()
-  ) {
-    redirect("/403");
-  }
+  const isSelf =
+    String(session.user.employeeId || "") === String(e._id) ||
+    session.user.email?.toLowerCase() === e.email?.toLowerCase();
 
-  const canEdit = ["superadmin", "hr"].includes(role);
+  // ใครดูข้อมูลอ่อนไหวได้บ้าง
+  const canSeeSensitive = isSelf || ["hr", "superadmin"].includes(role);
+  // ใครเห็นปุ่มแก้ไขบ้าง (self + HR/Superadmin)
+  const canEdit = isSelf || ["hr", "superadmin"].includes(role);
+
+  // --------- map fields (รองรับ schema เก่า/ใหม่) ----------
+  const book = e.privateInfo?.bookbank || e.privateInfo || {};
+  const bankAccountName =
+    book.accountHolderName || book.accountHolder || book.bankAccountName || "-";
+  const bankAccountNo = book.accountNumber || book.bankAccountNo || "-";
+  const bankName = book.bankName || "-";
+  const bankBranch = book.branchName || book.bankBranch || "-";
+
+  // emergency: ถ้าไม่ได้สิทธิ์ ไม่ส่งข้อมูลจริงให้ client
+  const emgPrimary = canSeeSensitive
+    ? e.emergency?.primary || e.emergency || null
+    : null;
 
   function normalizeAvatar(u) {
-    if (!u) return "/avatar-default.png"; // รูป fallback ใน public
-    if (u.startsWith("http") || u.startsWith("data:")) return u; // ลิงก์ภายนอก/ base64
-    return u.startsWith("/") ? u : `/${u}`; // ทำให้เป็น absolute path ภายใต้ public
+    if (!u) return "/avatar-default.png";
+    if (u.startsWith("http") || u.startsWith("data:")) return u;
+    return u.startsWith("/") ? u : `/${u}`;
   }
-
-  const avatar = normalizeAvatar(e.photoUrl); // ✅ ประกาศให้ชัดเจนก่อน return
+  const avatar = normalizeAvatar(e.photoUrl);
 
   return (
     <div className="px-6 py-6 space-y-6">
@@ -121,13 +131,7 @@ export default async function EmployeeProfilePage({ searchParams }) {
       <section className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-6">
         <div className="flex items-start gap-5">
           <div className="relative h-24 w-24 rounded-2xl overflow-hidden ring-1 ring-white/10">
-            <Image
-              src={avatar}
-              alt={e.firstName}
-              fill
-              sizes="96px"
-              // unoptimized // <- ถ้าเป็นลิงก์ภายนอกแต่ยังไม่ตั้งค่า next.config.js
-            />
+            <Image src={avatar} alt={e.firstName} fill sizes="96px" />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -184,14 +188,12 @@ export default async function EmployeeProfilePage({ searchParams }) {
           </Card>
 
           <Card title="Emergency Contact">
-            {e.emergency?.primary || e.emergency?.secondary ? (
-              <div className="grid sm:grid-cols-2 gap-4">
-                <EmergencyBlock title="Primary" data={e.emergency?.primary} />
-                <EmergencyBlock
-                  title="Secondary"
-                  data={e.emergency?.secondary}
-                />
-              </div>
+            {emgPrimary ? (
+              <EmergencyBlock
+                title="Emergency Contact"
+                data={emgPrimary}
+                canView={canSeeSensitive}
+              />
             ) : (
               <p className="text-slate-400 text-sm">
                 ยังไม่มีข้อมูลผู้ติดต่อฉุกเฉิน
@@ -205,35 +207,23 @@ export default async function EmployeeProfilePage({ searchParams }) {
           <Card
             title="Private Information"
             right={
-              !canEdit && (
+              !canSeeSensitive && (
                 <span className="text-xs text-slate-400">
-                  Visible to HR/Admin only
+                  Visible to the owner, HR, and Super Admin only
                 </span>
               )
             }
           >
-            {(isSelf || ["superadmin","hr"].includes(role)) ? (
+            {canSeeSensitive ? (
               <>
                 <dl className="grid gap-3 text-sm">
-                  <Info
-                    label="Account holder name"
-                    value={e.privateInfo?.bookbank?.accountHolder || "-"}
-                  />
-                  <Info
-                    label="Account name / No."
-                    value={e.privateInfo?.bookbank?.accountNumber || "-"}
-                  />
-                  <Info
-                    label="Bank name"
-                    value={e.privateInfo?.bookbank?.bankName || "-"}
-                  />
-                  <Info
-                    label="Branch name"
-                    value={e.privateInfo?.bookbank?.branchName || "-"}
-                  />
+                  <Info label="Account holder name" value={bankAccountName} />
+                  <Info label="Account name / No." value={bankAccountNo} />
+                  <Info label="Bank name" value={bankName} />
+                  <Info label="Branch name" value={bankBranch} />
                 </dl>
                 <p className="mt-3 text-xs text-slate-400">
-                  ข้อมูลนี้เห็นได้เฉพาะ Super Admin และ HR
+                  ข้อมูลนี้เห็นได้เฉพาะเจ้าของบัญชี, HR และ Super Admin
                 </p>
               </>
             ) : (
@@ -291,18 +281,27 @@ function Info({ label, value, span = false, copyable = false }) {
   );
 }
 
-function EmergencyBlock({ title, data }) {
-  if (!data)
+function EmergencyBlock({ title, data, canView }) {
+  if (!canView) {
+    return (
+      <div className="rounded-xl ring-1 ring-white/10 bg-white/5 p-4 text-slate-400 text-sm">
+        Visible to the owner, HR, and Super Admin only
+      </div>
+    );
+  }
+  if (!data) {
     return (
       <div className="rounded-xl ring-1 ring-white/10 bg-white/5 p-4 text-slate-400 text-sm">
         No data
       </div>
     );
+  }
   return (
     <div className="rounded-xl ring-1 ring-white/10 bg-white/5 p-4">
       <h4 className="text-slate-200 font-medium mb-3">{title}</h4>
       <dl className="grid gap-2 text-sm">
-        <Info label="Name" value={data.name || "-"} />
+        <Info label="First Name" value={data.firstName || "-"} />
+        <Info label="Last Name" value={data.lastName || "-"} />
         <Info label="Relationship" value={data.relationship || "-"} />
         <Info label="Phone" value={data.phone || "-"} />
         <Info label="Email" value={data.email || "-"} />

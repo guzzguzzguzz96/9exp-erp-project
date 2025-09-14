@@ -1,28 +1,61 @@
-// "use client"  ❌  (ให้เป็น Server Component เพื่อดึง session ฝั่งเซิร์ฟเวอร์)
-import Link from "next/link";
-import Image from "next/image";
+// src/components/Topbar.jsx
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
-import UserMenu from "./UserMenu";
 import dbConnect from "@/lib/mongoose";
 import Employee from "@/lib/models/Employee";
+import UserMenu from "./UserMenu";
 
-
-const session = await getServerSession(authOptions);
-let livePhoto = null;
-if (session?.user?.email) {
-  await dbConnect();
-  const emp = await Employee.findOne({ email: session.user.email }).select("photoUrl").lean();
-  livePhoto = emp?.photoUrl || null;
-}
+const escapeReg = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export default async function Topbar() {
   const session = await getServerSession(authOptions);
-  const user = session?.user;
+  const user = session?.user || null;
+
+  await dbConnect();
+
+  // --- หา employee ของผู้ล็อกอิน: employeeId -> userId -> email (i)
+  let emp = null;
+  if (session?.user?.employeeId) {
+    emp = await Employee.findById(session.user.employeeId)
+      .select("firstName lastName nickName photoUrl department position")
+      .lean();
+  }
+  if (!emp && user?.id) {
+    emp = await Employee.findOne({ userId: user.id })
+      .select("firstName lastName nickName photoUrl department position")
+      .lean();
+  }
+  if (!emp && user?.email) {
+    emp = await Employee.findOne({
+      email: { $regex: new RegExp(`^${escapeReg(user.email)}$`, "i") },
+    })
+      .select("firstName lastName nickName photoUrl department position")
+      .lean();
+  }
+
+  const nameFromEmp =
+    emp?.firstName || emp?.lastName
+      ? `${emp?.firstName ?? ""} ${emp?.lastName ?? ""}`.trim()
+      : "";
+
+  // กันกรณี user.name หลุดมาเป็น ObjectId 24 ตัว
+  const looksLikeObjectId = (s) => /^[0-9a-f]{24}$/i.test(s || "");
+
+  const displayName =
+    nameFromEmp ||
+    (user?.name && !looksLikeObjectId(user.name) ? user.name : "") ||
+    user?.email;
+
+  const mergedUser = {
+    ...user,
+    name: displayName,
+    photoUrl: emp?.photoUrl || user?.photoUrl || user?.image || null,
+    department: emp?.department ?? user?.department ?? null,
+    position: emp?.position ?? null,
+  };
 
   return (
     <header className="sticky top-0 z-40 h-16 border-b border-white/10 bg-[#0F172B]/95 backdrop-blur flex items-center gap-4 px-4">
-      {/* Search */}
       <div className="flex-1 max-w-xl">
         <input
           placeholder="Search here…"
@@ -31,7 +64,7 @@ export default async function Topbar() {
       </div>
 
       <div className="ml-auto">
-      <UserMenu user={{ ...session.user, photoUrl: livePhoto || session.user.photoUrl }} />
+        <UserMenu user={mergedUser} />
       </div>
     </header>
   );
