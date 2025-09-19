@@ -1,54 +1,33 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import dbConnect from "@/lib/mongoose";
-import Department from "@/lib/models/Department";
-import Employee from "@/lib/models/Employee";
-import { requireSessionPage } from "@/lib/authz";
-import DepartmentEditForm from "./DepartmentEditForm";
-
 export const dynamic = "force-dynamic";
 
-export default async function EditDepartmentPage({ params }) {
+import dbConnect from "@/lib/mongoose";
+import { requireSessionPage } from "@/lib/authz";
+import Department from "@/lib/models/Department";
+import Employee from "@/lib/models/Employee";
+import DepartmentEditForm from "./DepartmentEditForm";
+
+export default async function DepartmentEditPage({ params }) {
+  const { id } = await params; // ✅ ต้อง await
   await requireSessionPage();
   await dbConnect();
 
-  const dept = await Department.findById(params.id).lean();
-  if (!dept) return notFound();
+  const dept = await Department.findById(id)
+    .lean()
+    .populate("headOfDepartment", "_id firstName lastName position level");
 
-  // นับแบบไม่ซ้ำ:
-  // - นับคนที่ departmentId = _id
-  // - หรือคนที่ยังไม่มี departmentId แต่ department (code) ตรงกับแผนกนี้
-  const employeeCount = await Employee.countDocuments({
-    $or: [
-      { departmentId: dept._id },
-      {
-        $and: [
-          { $or: [{ departmentId: { $exists: false } }, { departmentId: null }] },
-          { department: dept.code },
-        ],
-      },
-    ],
-  });
+  if (!dept) return <div className="p-6 text-slate-200">Department not found</div>;
+
+  const eligible = await Employee.find({ level: { $in: [5, 6] } })
+    .select("_id firstName lastName nickName position level")
+    .lean();
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-100">Edit Department</h1>
-        <Link
-          href="/dashboard/hrm/departments"
-          className="rounded-xl bg-white/10 px-4 py-2 ring-1 ring-white/10 text-slate-200 hover:bg-white/15"
-        >
-          ← Back
-        </Link>
-      </div>
-
-      {/* <div className="text-sm text-slate-400">
-        Employees in this department: <b className="text-slate-200">{employeeCount}</b>
-      </div> */}
-
+    <div className="px-6 py-6 container mx-auto">
+      <h1 className="text-2xl font-semibold text-slate-100 mb-4">Edit Department</h1>
       <DepartmentEditForm
         initial={JSON.parse(JSON.stringify(dept))}
-        employeeCount={employeeCount}
+        employeeCount={0}
+        eligibleHeads={JSON.parse(JSON.stringify(eligible))}
       />
     </div>
   );

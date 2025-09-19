@@ -10,7 +10,7 @@ const LEVEL_LABEL = {
   3: "Senior",
   4: "Lead",
   5: "Manager",
-  6: "CEO/CTO",
+  6: "CEO/COO",
 };
 
 export default function DepartmentsClient({ initialItems, canEdit = false }) {

@@ -1,59 +1,51 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/authOptions";
 import dbConnect from "@/lib/mongoose";
 import Department from "@/lib/models/Department";
-import Employee from "@/lib/models/Employee";
-
-async function requireAdmin() {
-  const session = await getServerSession(authOptions);
-  const role = session?.user?.role ?? "employee";
-  if (!["superadmin", "hr"].includes(role)) {
-    return { ok: false, res: NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 }) };
-  }
-  return { ok: true };
-}
+import mongoose from "mongoose"; // ✅ ใช้ mongoose.isValidObjectId
 
 export async function PUT(req, { params }) {
-  const guard = await requireAdmin();
-  if (!guard.ok) return guard.res;
-
-  await dbConnect();
   try {
+    await dbConnect();
     const body = await req.json();
-    const payload = {
-      name: body.name,
-      code: body.code,
-      color: body.color,
-      empIdPrefix: body.empIdPrefix ?? "",
-      description: body.description ?? "",
+
+    const update = {
+      name: String(body.name || "").trim(),
+      code: String(body.code || "").trim().toUpperCase(),
+      color: body.color || "#6366f1",
+      empIdPrefix: String(body.empIdPrefix || "").trim(),
+      description: body.description || "",
       allowedLevels: Array.isArray(body.allowedLevels) ? body.allowedLevels : [],
       positions: Array.isArray(body.positions) ? body.positions : [],
-      updatedAt: new Date(),
     };
-    await Department.findByIdAndUpdate(params.id, payload);
-    return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ ok: false, message: e?.message || "Server error" }, { status: 500 });
+
+    // ✅ validate headOfDepartment (ว่างได้, ผิดรูปแบบให้ 400)
+    let headId = body.headOfDepartment ?? null;
+    if (typeof headId === "string" && headId.trim() === "") headId = null;
+    if (headId && !mongoose.isValidObjectId(headId)) {
+      return NextResponse.json({ message: "Invalid headOfDepartment id" }, { status: 400 });
+    }
+    update.headOfDepartment = headId;
+
+    const doc = await Department.findByIdAndUpdate(params.id, update, {
+      new: true,
+    }).populate("headOfDepartment", "_id firstName lastName position level");
+
+    if (!doc) return NextResponse.json({ message: "Department not found" }, { status: 404 });
+    return NextResponse.json(doc);
+  } catch (err) {
+    console.error("PUT /departments error:", err);
+    return NextResponse.json({ message: err.message || "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function DELETE(_req, { params }) {
-  const guard = await requireAdmin();
-  if (!guard.ok) return guard.res;
-
-  await dbConnect();
   try {
-    const n = await Employee.countDocuments({ departmentId: params.id });
-    if (n > 0) {
-      return NextResponse.json(
-        { ok: false, message: `Cannot delete: ${n} employee(s) still in this department.` },
-        { status: 409 }
-      );
-    }
-    await Department.findByIdAndDelete(params.id);
+    await dbConnect();
+    const doc = await Department.findByIdAndDelete(params.id);
+    if (!doc) return NextResponse.json({ message: "Department not found" }, { status: 404 });
     return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ ok: false, message: e?.message || "Server error" }, { status: 500 });
+  } catch (err) {
+    console.error("DELETE /departments error:", err);
+    return NextResponse.json({ message: err.message || "Internal Server Error" }, { status: 500 });
   }
 }

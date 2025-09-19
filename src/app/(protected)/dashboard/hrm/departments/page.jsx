@@ -63,7 +63,7 @@ export default async function DepartmentsPage() {
   const canEdit = ["superadmin", "hr"].includes(role);
 
   return (
-    <div className="space-y-6">
+    <div className="px-6 py-6 container mx-auto space-y-6">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-100">Departments</h1>

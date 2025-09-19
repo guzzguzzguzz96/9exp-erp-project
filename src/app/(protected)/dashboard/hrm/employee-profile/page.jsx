@@ -38,7 +38,8 @@ export default async function EmployeeProfilePage({ searchParams }) {
 
   await dbConnect();
 
-  const targetId = searchParams?.id;
+  const sp = await searchParams; // ✅ ต้อง await
+  const targetId = sp?.id || null;
   let e = null;
 
   if (targetId) {
@@ -55,7 +56,9 @@ export default async function EmployeeProfilePage({ searchParams }) {
     // 3) fallback ด้วยอีเมล
     if (!e && session.user.email) {
       e = await Employee.findOne({
-        email: { $regex: new RegExp(`^${escapeReg(session.user.email)}$`, "i") },
+        email: {
+          $regex: new RegExp(`^${escapeReg(session.user.email)}$`, "i"),
+        },
       }).lean();
     }
   }
@@ -94,20 +97,12 @@ export default async function EmployeeProfilePage({ searchParams }) {
   const avatar = normalizeAvatar(e.photoUrl);
 
   return (
-    <div className="px-6 py-6 space-y-6">
+    <div className="px-6 py-6 container mx-auto space-y-6">
       {/* Breadcrumb + Back */}
       <div className="flex items-center justify-between">
-        <nav className="text-sm text-slate-400">
-          <Link href="/dashboard" className="hover:text-slate-200">
-            Home
-          </Link>
-          <span className="mx-2">›</span>
-          <Link href="/dashboard/hrm/employee" className="hover:text-slate-200">
-            Employee
-          </Link>
-          <span className="mx-2">›</span>
-          <span className="text-slate-200">Profile</span>
-        </nav>
+
+          <h1 className="text-2xl font-semibold text-slate-100">Profile</h1>
+
 
         <div className="flex items-center gap-2">
           <Link

@@ -120,7 +120,7 @@ function RecursiveNode({
             {!collapsed && <span className="truncate">{node.label}</span>}
           </span>
           {!collapsed && (
-            <span className="ml-auto">
+            <span className="ml-auto pr-1.5">
               {opened ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
             </span>
           )}

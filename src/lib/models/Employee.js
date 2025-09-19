@@ -33,7 +33,7 @@ const EmployeeSchema = new Schema(
     position: { type: String, required: true }, // เช่น "Senior IT Support"
     level: { type: Number, min: 1, max: 6, required: true }, // 1..6
     dateOfJoin: { type: Date, required: true },
-    birthday:   { type: Date, required: true },
+    birthday: { type: Date, required: true },
     phone: { type: String, required: true },
     email: { type: String, required: true, index: true },
     address: { type: String },
@@ -45,6 +45,8 @@ const EmployeeSchema = new Schema(
       ref: "Department",
       required: true,
     },
+    signatureDataUrl: { type: String, default: "" }, // PNG data URL
+    signatureUpdatedAt: { type: Date },
 
     emergency: {
       firstName: String,

@@ -50,7 +50,7 @@ export default async function EditEmployeePage({ searchParams }) {
   const canAdmin = ["superadmin", "hr"].includes(session.user.role);
 
   return (
-    <div className="px-6 py-6 space-y-6">
+    <div className="px-6 py-6 container mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-100">Edit Employee</h1>

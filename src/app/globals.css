@@ -47,3 +47,8 @@ html, body {
   box-shadow: 0 0 0 2px rgba(99,102,241,.35);
   border-color: rgba(99,102,241,.5);
 }
+
+.react-flow__edge .react-flow__edge-path{
+  opacity: 1 !important;
+  stroke-opacity: 1 !important;
+}

@@ -63,7 +63,7 @@ export default async function EmployeeIndexPage() {
   }
 
   return (
-    <div className="px-6 py-6 space-y-6">
+    <div className="px-6 py-6 container mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-100">Employees</h1>
