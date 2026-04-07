@@ -1,71 +1,74 @@
-// src/components/Topbar.jsx
+// src/app/components/Topbar.jsx
+// Server Component — ไม่มี event handlers (onFocus/onBlur ใช้ CSS แทน)
+
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
+import UserMenu from "./UserMenu";
 import dbConnect from "@/lib/mongoose";
 import Employee from "@/lib/models/Employee";
-import UserMenu from "./UserMenu";
 
-const escapeReg = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const session = await getServerSession(authOptions);
+let livePhoto = null;
+if (session?.user?.email) {
+  await dbConnect();
+  const emp = await Employee.findOne({ email: session.user.email })
+    .select("photoUrl")
+    .lean();
+  livePhoto = emp?.photoUrl || null;
+}
 
 export default async function Topbar() {
   const session = await getServerSession(authOptions);
-  const user = session?.user || null;
-
-  await dbConnect();
-
-  // --- หา employee ของผู้ล็อกอิน: employeeId -> userId -> email (i)
-  let emp = null;
-  if (session?.user?.employeeId) {
-    emp = await Employee.findById(session.user.employeeId)
-      .select("firstName lastName nickName photoUrl department position")
-      .lean();
-  }
-  if (!emp && user?.id) {
-    emp = await Employee.findOne({ userId: user.id })
-      .select("firstName lastName nickName photoUrl department position")
-      .lean();
-  }
-  if (!emp && user?.email) {
-    emp = await Employee.findOne({
-      email: { $regex: new RegExp(`^${escapeReg(user.email)}$`, "i") },
-    })
-      .select("firstName lastName nickName photoUrl department position")
-      .lean();
-  }
-
-  const nameFromEmp =
-    emp?.firstName || emp?.lastName
-      ? `${emp?.firstName ?? ""} ${emp?.lastName ?? ""}`.trim()
-      : "";
-
-  // กันกรณี user.name หลุดมาเป็น ObjectId 24 ตัว
-  const looksLikeObjectId = (s) => /^[0-9a-f]{24}$/i.test(s || "");
-
-  const displayName =
-    nameFromEmp ||
-    (user?.name && !looksLikeObjectId(user.name) ? user.name : "") ||
-    user?.email;
-
-  const mergedUser = {
-    ...user,
-    name: displayName,
-    photoUrl: emp?.photoUrl || user?.photoUrl || user?.image || null,
-    department: emp?.department ?? user?.department ?? null,
-    position: emp?.position ?? null,
-  };
 
   return (
-    <header className="sticky top-0 z-40 h-16 border-b border-white/10 bg-[#0F172B]/95 backdrop-blur flex items-center gap-4 px-4">
-      <div className="flex-1 max-w-xl">
-        <input
-          placeholder="Search here…"
-          className="w-full h-10 rounded-xl bg-white/5 px-4 text-slate-100 ring-1 ring-inset ring-white/10 placeholder:text-slate-400 focus:outline-none focus:ring-indigo-400/40"
-        />
-      </div>
+    <>
+      {/* Inject focus style via <style> tag — no JS needed */}
+      <style>{`
+        .topbar-search:focus {
+          border-color: #005CFF !important;
+          box-shadow: 0 0 0 3px rgba(0,92,255,0.12) !important;
+          outline: none;
+        }
+      `}</style>
 
-      <div className="ml-auto">
-        <UserMenu user={mergedUser} />
-      </div>
-    </header>
+      <header
+        className="sticky top-0 z-40 h-16 flex items-center gap-4 px-4"
+        style={{
+          background: "#FFFFFF",
+          borderBottom: "1px solid rgba(0,92,255,0.08)",
+          boxShadow: "0 1px 4px rgba(13,27,42,0.06)",
+        }}
+      >
+        {/* Search */}
+        <div className="flex-1 max-w-xl">
+          <input
+            placeholder="Search here…"
+            className="topbar-search"
+            style={{
+              width: "100%",
+              height: "38px",
+              borderRadius: "10px",
+              background: "#F8FAFD",
+              border: "1px solid rgba(0,92,255,0.12)",
+              padding: "0 1rem",
+              fontSize: "13px",
+              color: "#0D1B2A",
+              outline: "none",
+              transition: "border-color 200ms ease, box-shadow 200ms ease",
+            }}
+          />
+        </div>
+
+        {/* User menu (ครบเดิม) */}
+        <div className="ml-auto">
+          <UserMenu
+            user={{
+              ...session.user,
+              photoUrl: livePhoto || session.user.photoUrl,
+            }}
+          />
+        </div>
+      </header>
+    </>
   );
 }

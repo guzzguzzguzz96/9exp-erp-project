@@ -8,6 +8,17 @@ import dbConnect from "@/lib/mongoose";
 import Employee from "@/lib/models/Employee";
 import { authOptions } from "@/lib/authOptions";
 import CopyBtn from "./CopyBtn";
+import {
+  User,
+  Briefcase,
+  ShieldAlert,
+  Lock,
+  Zap,
+  Pencil,
+  KeyRound,
+  Ban,
+  ArrowLeft,
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -20,16 +31,6 @@ const fmtDate = (d) =>
       })
     : "-";
 
-const Card = ({ title, children, right }) => (
-  <section className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-5">
-    <div className="mb-4 flex items-center justify-between">
-      <h3 className="text-slate-200 font-medium">{title}</h3>
-      {right}
-    </div>
-    {children}
-  </section>
-);
-
 const escapeReg = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export default async function EmployeeProfilePage({ searchParams }) {
@@ -38,22 +39,19 @@ export default async function EmployeeProfilePage({ searchParams }) {
 
   await dbConnect();
 
-  const sp = await searchParams; // ✅ ต้อง await
+  const sp = await searchParams;
   const targetId = sp?.id || null;
   let e = null;
 
   if (targetId) {
     e = await Employee.findById(targetId).lean();
   } else {
-    // 1) จาก employeeId ใน session
     if (session.user.employeeId) {
       e = await Employee.findById(session.user.employeeId).lean();
     }
-    // 2) ลิงก์ด้วย userId (ถ้ามีใน session)
     if (!e && session.user.id) {
       e = await Employee.findOne({ userId: session.user.id }).lean();
     }
-    // 3) fallback ด้วยอีเมล
     if (!e && session.user.email) {
       e = await Employee.findOne({
         email: {
@@ -71,12 +69,9 @@ export default async function EmployeeProfilePage({ searchParams }) {
     String(session.user.employeeId || "") === String(e._id) ||
     session.user.email?.toLowerCase() === e.email?.toLowerCase();
 
-  // ใครดูข้อมูลอ่อนไหวได้บ้าง
   const canSeeSensitive = isSelf || ["hr", "superadmin"].includes(role);
-  // ใครเห็นปุ่มแก้ไขบ้าง (self + HR/Superadmin)
   const canEdit = isSelf || ["hr", "superadmin"].includes(role);
 
-  // --------- map fields (รองรับ schema เก่า/ใหม่) ----------
   const book = e.privateInfo?.bookbank || e.privateInfo || {};
   const bankAccountName =
     book.accountHolderName || book.accountHolder || book.bankAccountName || "-";
@@ -84,7 +79,6 @@ export default async function EmployeeProfilePage({ searchParams }) {
   const bankName = book.bankName || "-";
   const bankBranch = book.branchName || book.bankBranch || "-";
 
-  // emergency: ถ้าไม่ได้สิทธิ์ ไม่ส่งข้อมูลจริงให้ client
   const emgPrimary = canSeeSensitive
     ? e.emergency?.primary || e.emergency || null
     : null;
@@ -100,71 +94,129 @@ export default async function EmployeeProfilePage({ searchParams }) {
     <div className="px-6 py-6 container mx-auto space-y-6">
       {/* Breadcrumb + Back */}
       <div className="flex items-center justify-between">
-
-          <h1 className="text-2xl font-semibold text-slate-100">Profile</h1>
-
-
+        <h1 style={{ color: "#0D1B2A", fontSize: "1.5rem", fontWeight: 600 }}>Profile</h1>
         <div className="flex items-center gap-2">
           <Link
             href="/dashboard/hrm/employee"
-            className="rounded-xl ring-1 ring-white/10 bg-white/5 hover:bg-white/10 px-3 py-2 text-slate-200"
+            className="group inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium no-underline transition-all duration-200 hover:-translate-y-0.5"
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid rgba(0,92,255,0.10)",
+              color: "#334155",
+              boxShadow: "0 1px 4px rgba(13,27,42,0.06)",
+            }}
           >
-            ← Back
+            <ArrowLeft size={14} /> Back
           </Link>
           {canEdit && (
             <Link
               href={`/dashboard/hrm/employee/edit?id=${e._id}`}
-              className="rounded-xl bg-indigo-600/90 hover:bg-indigo-600 px-3 py-2 text-white ring-1 ring-white/10"
+              className="group inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium no-underline transition-all duration-200 hover:-translate-y-0.5"
+              style={{
+                background: "linear-gradient(135deg, #005CFF, #2486FF)",
+                color: "#FFFFFF",
+                boxShadow: "0 2px 12px rgba(0,92,255,0.3)",
+              }}
             >
-              Edit
+              <Pencil size={14} /> Edit
             </Link>
           )}
         </div>
       </div>
 
-      {/* Header Profile */}
-      <section className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-6">
-        <div className="flex items-start gap-5">
-          <div className="relative h-24 w-24 rounded-2xl overflow-hidden ring-1 ring-white/10">
-            <Image src={avatar} alt={e.firstName} fill sizes="96px" />
+      {/* ── Hero Profile Banner ──────────────────────────────────── */}
+      <section
+        className="relative overflow-hidden rounded-3xl p-8"
+        style={{
+          background: "linear-gradient(135deg, #0D1B2A 0%, #005CFF 60%, #2486FF 100%)",
+          border: "none",
+          boxShadow: "0 4px 24px rgba(0,92,255,0.15)",
+        }}
+      >
+        {/* Decorative elements */}
+        <div
+          className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full opacity-10"
+          style={{ background: "#D4F73F" }}
+        />
+        <div
+          className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full opacity-[0.06]"
+          style={{ background: "#D4F73F" }}
+        />
+
+        <div className="relative z-10 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+          {/* Avatar with ring */}
+          <div className="relative shrink-0">
+            <div
+              className="h-28 w-28 rounded-2xl p-[3px]"
+              style={{
+                background: "linear-gradient(135deg, #D4F73F, #005CFF, #D4F73F)",
+              }}
+            >
+              <div className="relative h-full w-full overflow-hidden rounded-[13px]">
+                <Image src={avatar} alt={e.firstName} fill sizes="112px" className="object-cover" />
+              </div>
+            </div>
+            {/* Online dot */}
+            <div
+              className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-[3px]"
+              style={{
+                background: "#D4F73F",
+                borderColor: "#0D1B2A",
+              }}
+            />
           </div>
 
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-semibold text-slate-100">
+          <div className="min-w-0 flex-1 text-center sm:text-left">
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:justify-start">
+              <h1 style={{ color: "#FFFFFF", fontSize: "20px", fontWeight: 600 }}>
                 {e.firstName} {e.lastName}
               </h1>
               {e.nickName && (
-                <span className="text-xs rounded-lg bg-white/10 px-2 py-1 text-slate-300">
-                  ({e.nickName})
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-medium"
+                  style={{
+                    background: "rgba(212,247,63,0.15)",
+                    color: "#D4F73F",
+                  }}
+                >
+                  {e.nickName}
                 </span>
               )}
             </div>
-            <p className="mt-1 text-slate-300">{e.position || "-"}</p>
+            <p style={{ color: "rgba(255,255,255,0.85)", fontSize: "14px", marginTop: "4px" }}>
+              {e.position || "-"}
+            </p>
 
-            <div className="mt-3 flex flex-wrap gap-2 text-xs">
-              <span className="rounded-md bg-white/10 px-2 py-1 text-slate-300 ring-1 ring-white/10">
-                Dept: <b className="ml-1">{e.department || "-"}</b>
-              </span>
-              <span className="rounded-md bg-white/10 px-2 py-1 text-slate-300 ring-1 ring-white/10">
-                Emp ID: <b className="ml-1">{e.empAutoId || "-"}</b>
-              </span>
-              <span className="rounded-md bg-white/10 px-2 py-1 text-slate-300 ring-1 ring-white/10">
-                Join: <b className="ml-1">{fmtDate(e.dateOfJoin)}</b>
-              </span>
-              <span className="rounded-md bg-white/10 px-2 py-1 text-slate-300 ring-1 ring-white/10">
-                Gender: <b className="ml-1">{e.gender || "-"}</b>
-              </span>
+            <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs sm:justify-start">
+              {[
+                { label: "Dept", val: e.department || "-" },
+                { label: "Emp ID", val: e.empAutoId || "-" },
+                { label: "Joined", val: fmtDate(e.dateOfJoin) },
+                { label: "Gender", val: e.gender || "-" },
+              ].map((tag) => (
+                <span
+                  key={tag.label}
+                  className="rounded-lg px-3 py-1.5 font-medium"
+                  style={{
+                    background: "rgba(255,255,255,0.15)",
+                    color: "#FFFFFF",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                    backdropFilter: "blur(8px)",
+                  }}
+                >
+                  {tag.label}: <span style={{ fontWeight: 600 }}>{tag.val}</span>
+                </span>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Content Grid */}
+      {/* ── Content Grid ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* LEFT column */}
         <div className="xl:col-span-2 space-y-6">
-          <Card title="Personal Information">
+          <Card title="Personal Information" Icon={User}>
             <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
               <Info label="Phone" value={e.phone} copyable />
               <Info label="Email" value={e.email} copyable />
@@ -173,7 +225,7 @@ export default async function EmployeeProfilePage({ searchParams }) {
             </dl>
           </Card>
 
-          <Card title="Employment">
+          <Card title="Employment" Icon={Briefcase}>
             <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
               <Info label="Department" value={e.department || "-"} />
               <Info label="Position" value={e.position || "-"} />
@@ -182,7 +234,7 @@ export default async function EmployeeProfilePage({ searchParams }) {
             </dl>
           </Card>
 
-          <Card title="Emergency Contact">
+          <Card title="Emergency Contact" Icon={ShieldAlert}>
             {emgPrimary ? (
               <EmergencyBlock
                 title="Emergency Contact"
@@ -190,8 +242,8 @@ export default async function EmployeeProfilePage({ searchParams }) {
                 canView={canSeeSensitive}
               />
             ) : (
-              <p className="text-slate-400 text-sm">
-                ยังไม่มีข้อมูลผู้ติดต่อฉุกเฉิน
+              <p style={{ color: "#808A95", fontSize: "14px" }}>
+                No emergency contact information available
               </p>
             )}
           </Card>
@@ -201,9 +253,10 @@ export default async function EmployeeProfilePage({ searchParams }) {
         <div className="space-y-6">
           <Card
             title="Private Information"
+            Icon={Lock}
             right={
               !canSeeSensitive && (
-                <span className="text-xs text-slate-400">
+                <span style={{ color: "#808A95", fontSize: "12px" }}>
                   Visible to the owner, HR, and Super Admin only
                 </span>
               )
@@ -217,42 +270,40 @@ export default async function EmployeeProfilePage({ searchParams }) {
                   <Info label="Bank name" value={bankName} />
                   <Info label="Branch name" value={bankBranch} />
                 </dl>
-                <p className="mt-3 text-xs text-slate-400">
-                  ข้อมูลนี้เห็นได้เฉพาะเจ้าของบัญชี, HR และ Super Admin
+                <p style={{ color: "#808A95", fontSize: "12px", marginTop: "12px" }}>
+                  Visible to the owner, HR, and Super Admin only
                 </p>
               </>
             ) : (
-              <p className="text-slate-400 text-sm">
-                คุณไม่มีสิทธิ์เข้าถึงข้อมูลส่วนนี้
+              <p style={{ color: "#808A95", fontSize: "14px" }}>
+                You do not have access to this information
               </p>
             )}
           </Card>
 
-          <Card title="Quick actions">
+          <Card title="Quick actions" Icon={Zap}>
             <div className="flex flex-col gap-2">
               {canEdit ? (
                 <>
-                  <Link
+                  <QuickActionLink
                     href={`/dashboard/hrm/employee/edit?id=${e._id}`}
-                    className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm text-slate-200"
-                  >
-                    แก้ไขข้อมูลพนักงาน
-                  </Link>
-                  <Link
+                    label="Edit employee info"
+                    ActionIcon={Pencil}
+                  />
+                  <QuickActionLink
                     href={`/dashboard/hrm/employee/reset-password?id=${e._id}`}
-                    className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm text-slate-200"
-                  >
-                    ตั้งรหัสผ่านใหม่
-                  </Link>
-                  <Link
+                    label="Reset password"
+                    ActionIcon={KeyRound}
+                  />
+                  <QuickActionLink
                     href={`/dashboard/hrm/employee/deactivate?id=${e._id}`}
-                    className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm text-red-300"
-                  >
-                    ระงับการใช้งาน
-                  </Link>
+                    label="Deactivate account"
+                    ActionIcon={Ban}
+                    danger
+                  />
                 </>
               ) : (
-                <p className="text-slate-400 text-sm">ไม่มี action ที่ใช้ได้</p>
+                <p style={{ color: "#808A95", fontSize: "14px" }}>No actions available</p>
               )}
             </div>
           </Card>
@@ -263,12 +314,52 @@ export default async function EmployeeProfilePage({ searchParams }) {
 }
 
 /* ---------- small view helpers (server-safe) ---------- */
+
+function Card({ title, children, right, Icon }) {
+  return (
+    <section
+      className="group/card relative overflow-hidden rounded-2xl p-5 transition-all duration-300 hover:-translate-y-0.5"
+      style={{
+        background: "#FFFFFF",
+        border: "1px solid rgba(0,92,255,0.10)",
+        boxShadow: "0 2px 8px rgba(13,27,42,0.06)",
+      }}
+    >
+      <div
+        className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover/card:opacity-100"
+        style={{
+          boxShadow: "0 6px 20px rgba(13,27,42,0.10)",
+        }}
+      />
+      <div className="relative z-10">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="flex items-center gap-2" style={{ color: "#0D1B2A", fontWeight: 600, fontSize: "15px" }}>
+            {Icon && (
+              <span
+                className="flex h-7 w-7 items-center justify-center rounded-md"
+                style={{ background: "rgba(0,92,255,0.08)", color: "#005CFF" }}
+              >
+                <Icon size={14} strokeWidth={2} />
+              </span>
+            )}
+            {title}
+          </h3>
+          {right}
+        </div>
+        {children}
+      </div>
+    </section>
+  );
+}
+
 function Info({ label, value, span = false, copyable = false }) {
   const v = value ?? "-";
   return (
     <div className={span ? "sm:col-span-2" : ""}>
-      <dt className="text-slate-400 text-xs">{label}</dt>
-      <dd className="mt-1 text-slate-200 flex items-center gap-2">
+      <dt style={{ color: "#808A95", fontSize: "11px", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        {label}
+      </dt>
+      <dd className="mt-1 flex items-center gap-2" style={{ color: "#334155" }}>
         <span className="truncate">{v}</span>
         {copyable && typeof value === "string" && <CopyBtn text={value} />}
       </dd>
@@ -276,24 +367,65 @@ function Info({ label, value, span = false, copyable = false }) {
   );
 }
 
+function QuickActionLink({ href, label, danger = false, ActionIcon }) {
+  return (
+    <Link
+      href={href}
+      className="group/action flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium no-underline transition-all duration-200 hover:-translate-y-0.5"
+      style={{
+        background: "#F8FAFD",
+        border: "1px solid rgba(0,92,255,0.08)",
+        color: danger ? "#DC2626" : "#334155",
+      }}
+    >
+      {ActionIcon && (
+        <span style={{ color: danger ? "#DC2626" : "#808A95" }}>
+          <ActionIcon size={15} strokeWidth={1.8} />
+        </span>
+      )}
+      {label}
+    </Link>
+  );
+}
+
 function EmergencyBlock({ title, data, canView }) {
   if (!canView) {
     return (
-      <div className="rounded-xl ring-1 ring-white/10 bg-white/5 p-4 text-slate-400 text-sm">
+      <div
+        className="rounded-xl p-4 text-sm"
+        style={{
+          background: "#F8FAFD",
+          border: "1px solid rgba(0,92,255,0.08)",
+          color: "#808A95",
+        }}
+      >
         Visible to the owner, HR, and Super Admin only
       </div>
     );
   }
   if (!data) {
     return (
-      <div className="rounded-xl ring-1 ring-white/10 bg-white/5 p-4 text-slate-400 text-sm">
+      <div
+        className="rounded-xl p-4 text-sm"
+        style={{
+          background: "#F8FAFD",
+          border: "1px solid rgba(0,92,255,0.08)",
+          color: "#808A95",
+        }}
+      >
         No data
       </div>
     );
   }
   return (
-    <div className="rounded-xl ring-1 ring-white/10 bg-white/5 p-4">
-      <h4 className="text-slate-200 font-medium mb-3">{title}</h4>
+    <div
+      className="rounded-xl p-4"
+      style={{
+        background: "#F8FAFD",
+        border: "1px solid rgba(0,92,255,0.08)",
+      }}
+    >
+      <h4 style={{ color: "#0D1B2A", fontWeight: 500, marginBottom: "12px" }}>{title}</h4>
       <dl className="grid gap-2 text-sm">
         <Info label="First Name" value={data.firstName || "-"} />
         <Info label="Last Name" value={data.lastName || "-"} />

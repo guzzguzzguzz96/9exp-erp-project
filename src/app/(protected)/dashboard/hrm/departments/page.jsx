@@ -73,7 +73,8 @@ export default async function DepartmentsPage() {
         {canEdit && (
           <Link
             href="/dashboard/hrm/departments/create"
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 px-4 py-2.5 text-white font-medium ring-1 ring-white/10"
+            className="inline-flex items-center gap-2 px-4 py-2.5 font-medium transition-colors duration-150"
+            style={{ background: "#005CFF", color: "#FFFFFF", borderRadius: "10px" }}
           >
             <Plus size={18} />
             Create Department

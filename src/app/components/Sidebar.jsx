@@ -13,64 +13,132 @@ import {
 } from "lucide-react";
 import { menuConfig } from "@/app/config/menuConfig";
 
-/* ---------- styles ---------- */
-const itemBase =
-  "flex items-center gap-3 py-2 rounded-lg transition-[background,color] duration-150";
-const itemIdle = "text-slate-300 hover:text-indigo-300 hover:bg-white/5";
-const itemActive =
-  "text-indigo-300 bg-white/10 ring-1 ring-inset ring-white/10";
-const sectionTitleCls =
-  "px-3 text-xs uppercase tracking-wider text-slate-400/70 mt-6 mb-2";
+/* ── 9Expert Brand tokens ─────────────────────────────────────── */
+const NAVY = "#0D1B2A";
+const BLUE = "#005CFF";
+const LIME = "#D4F73F";
+const SLATE = "#808A95";
+const BORDER = "rgba(255,255,255,0.06)";
 
-/* ---------- helpers ---------- */
+/* ── Keys ──────────────────────────────────────────────────────── */
 const OPEN_KEY = "sb:open";
 const COLLAPSE_KEY = "sb:collapsed";
 const EMPLOYEE_KEY = "emp";
 
+/* ── Helpers ───────────────────────────────────────────────────── */
 function canSee(roles, role) {
   if (!roles || roles.length === 0) return true;
   if (!role) return false;
   return roles.includes(role);
 }
-
 function isActivePath(pathname, href) {
   if (!href) return false;
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-function IconRender({ Icon, collapsed, label }) {
-  if (!Icon) return null;
-  return (
-    <span className="pl-3 shrink-0">
-      <Icon
-        size={18}
-        aria-hidden="true"
-        title={collapsed ? label : undefined}
-      />
-    </span>
-  );
-}
-
-/* ---------- single link ---------- */
+/* ── NavLink ───────────────────────────────────────────────────── */
 function NavLink({ node, active, collapsed }) {
   const Icon = node.icon;
+  /* Collapsed mode: icon-only pill */
+  if (collapsed) {
+    return (
+      <Link
+        href={node.href}
+        title={node.label}
+        style={{
+          display: "grid",
+          placeItems: "center",
+          width: "40px",
+          height: "40px",
+          margin: "2px auto",
+          borderRadius: "10px",
+          background: active ? LIME : "transparent",
+          color: active ? NAVY : SLATE,
+          transition: "all 150ms ease",
+          textDecoration: "none",
+        }}
+        onMouseEnter={(e) => {
+          if (!active) {
+            e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+            e.currentTarget.style.color = "#FFFFFF";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!active) {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = SLATE;
+          }
+        }}
+      >
+        {Icon && <Icon size={18} aria-hidden />}
+      </Link>
+    );
+  }
+
+  /* Expanded mode */
   return (
     <Link
       href={node.href}
-      className={`${itemBase} ${active ? itemActive : itemIdle} ${
-        collapsed ? "justify-center px-0 mx-2" : ""
-      }`}
-      title={collapsed ? node.label : undefined}
+      title={undefined}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        justifyContent: "flex-start",
+        padding: "7px 10px",
+        margin: "1px 0",
+        borderRadius: "10px",
+        fontSize: "13px",
+        fontWeight: active ? "600" : "400",
+        color: active ? "#FFFFFF" : SLATE,
+        background: active
+          ? "linear-gradient(90deg, rgba(0,92,255,0.20) 0%, rgba(0,92,255,0.05) 100%)"
+          : "transparent",
+        borderLeft: active
+          ? `3px solid ${LIME}`
+          : "3px solid transparent",
+        transition: "all 150ms ease",
+        textDecoration: "none",
+      }}
+      onMouseEnter={(e) => {
+        if (!active) {
+          e.currentTarget.style.color = "#FFFFFF";
+          e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) {
+          e.currentTarget.style.color = SLATE;
+          e.currentTarget.style.background = "transparent";
+        }
+      }}
     >
-      <IconRender Icon={Icon} collapsed={collapsed} label={node.label} />
-      {!collapsed && <span className="truncate">{node.label}</span>}
+      {Icon && (
+        <span
+          style={{
+            paddingLeft: "2px",
+            flexShrink: 0,
+            color: active ? LIME : SLATE,
+            transition: "color 150ms ease",
+          }}
+        >
+          <Icon size={16} aria-hidden />
+        </span>
+      )}
+      <span
+        style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {node.label}
+      </span>
     </Link>
   );
 }
 
-/* ===========================================================
-   Recursive node (รองรับ group → group → link … ได้ไม่จำกัดชั้น)
-   =========================================================== */
+/* ── RecursiveNode ─────────────────────────────────────────────── */
 function RecursiveNode({
   node,
   depth,
@@ -80,9 +148,8 @@ function RecursiveNode({
   setOpen,
   role,
 }) {
-  const paddingLeft = collapsed ? 0 : Math.min(depth * 12, 32); // px
+  const paddingLeft = collapsed ? 0 : Math.min(depth * 12, 32);
 
-  // ลิงก์ปกติ
   if (node.type === "link") {
     return (
       <li style={{ paddingLeft }}>
@@ -95,40 +162,123 @@ function RecursiveNode({
     );
   }
 
-  // กลุ่มเมนู (มี children)
   if (node.type === "group") {
-    // กรองสิทธิ์ให้ลูก ๆ ก่อน
     const children = node.children?.filter((n) => canSee(n.roles, role)) ?? [];
-
     const opened = !!open[node.key];
     const toggle = () => setOpen((s) => ({ ...s, [node.key]: !opened }));
     const Icon = node.icon;
 
-    return (
-      <li className="relative" style={{ paddingLeft }}>
-        {/* ปุ่มหัวข้อ group */}
-        <button
-          onClick={toggle}
-          className={`${itemBase} justify-between ${
-            opened ? itemActive : itemIdle
-          } ${collapsed ? "justify-center px-0 mx-2" : ""} w-full`}
-          style={{ paddingLeft }}
-          title={collapsed ? node.label : undefined}
-        >
-          <span className="flex items-center gap-3">
-            <IconRender Icon={Icon} collapsed={collapsed} label={node.label} />
-            {!collapsed && <span className="truncate">{node.label}</span>}
-          </span>
-          {!collapsed && (
-            <span className="ml-auto pr-1.5">
-              {opened ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+    /* Collapsed: icon-only pill for group */
+    const groupBtn = collapsed ? (
+      <button
+        onClick={toggle}
+        title={node.label}
+        style={{
+          display: "grid",
+          placeItems: "center",
+          width: "40px",
+          height: "40px",
+          margin: "2px auto",
+          borderRadius: "10px",
+          background: opened ? LIME : "transparent",
+          color: opened ? NAVY : SLATE,
+          border: "none",
+          cursor: "pointer",
+          transition: "all 150ms ease",
+        }}
+        onMouseEnter={(e) => {
+          if (!opened) {
+            e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+            e.currentTarget.style.color = "#FFFFFF";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!opened) {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = SLATE;
+          }
+        }}
+      >
+        {Icon && <Icon size={18} />}
+      </button>
+    ) : (
+      <button
+        onClick={toggle}
+        title={undefined}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          width: "100%",
+          padding: "7px 10px",
+          margin: "1px 0",
+          borderRadius: "10px",
+          fontSize: "13px",
+          fontWeight: opened ? "600" : "400",
+          color: opened ? "#FFFFFF" : SLATE,
+          background: opened
+            ? "linear-gradient(90deg, rgba(0,92,255,0.20) 0%, rgba(0,92,255,0.05) 100%)"
+            : "transparent",
+          border: "none",
+          cursor: "pointer",
+          transition: "all 150ms ease",
+        }}
+        onMouseEnter={(e) => {
+          if (!opened) {
+            e.currentTarget.style.color = "#FFFFFF";
+            e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!opened) {
+            e.currentTarget.style.color = SLATE;
+            e.currentTarget.style.background = "transparent";
+          }
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {Icon && (
+            <span
+              style={{
+                paddingLeft: "2px",
+                flexShrink: 0,
+                color: opened ? LIME : SLATE,
+                transition: "color 150ms ease",
+              }}
+            >
+              <Icon size={16} />
             </span>
           )}
-        </button>
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {node.label}
+          </span>
+        </span>
+        <span style={{ marginLeft: "auto", color: SLATE }}>
+          {opened ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+      </button>
+    );
 
-        {/* children: โหมด sidebar ปกติ */}
+    return (
+      <li className="relative" style={{ paddingLeft }}>
+        {groupBtn}
+
+        {/* Expanded children */}
         {!collapsed && opened && children.length > 0 && (
-          <ul className="mt-1 space-y-1">
+          <ul
+            style={{
+              marginTop: "2px",
+              paddingLeft: "8px",
+              borderLeft: `1px solid ${BORDER}`,
+              marginLeft: "18px",
+            }}
+          >
             {children.map((child) => (
               <RecursiveNode
                 key={child.key}
@@ -144,12 +294,36 @@ function RecursiveNode({
           </ul>
         )}
 
-        {/* children: โหมด sidebar ยุบเป็นไอคอน → โชว์ flyout ข้าง ๆ */}
+        {/* Flyout (collapsed mode) */}
         {collapsed && opened && children.length > 0 && (
-          <div className="absolute left-full top-0 ml-2 w-64 rounded-xl bg-[#0F172B] border border-white/10 shadow-2xl p-2 z-40">
-            {/* หัวข้อ */}
-            <p className="px-2 py-1 text-xs text-slate-400/80">{node.label}</p>
-            <ul className="space-y-1">
+          <div
+            style={{
+              position: "absolute",
+              left: "100%",
+              top: 0,
+              marginLeft: "8px",
+              minWidth: "200px",
+              background: "#0D1B2A",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "12px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+              padding: "8px",
+              zIndex: 40,
+            }}
+          >
+            <p
+              style={{
+                padding: "4px 8px 6px",
+                fontSize: "10px",
+                fontWeight: "600",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: SLATE,
+              }}
+            >
+              {node.label}
+            </p>
+            <ul>
               {children.map((child) => (
                 <RecursiveNode
                   key={child.key}
@@ -168,39 +342,33 @@ function RecursiveNode({
       </li>
     );
   }
-
   return null;
 }
 
-/* =========================================================== */
-
+/* ── Sidebar ───────────────────────────────────────────────────── */
 export default function Sidebar() {
   const { data: session } = useSession();
   const role = session?.user?.role ?? "employee";
   const pathname = usePathname();
 
-  // สถานะพับ/กางของทุก group เก็บใน object
   const [open, setOpen] = useState({});
   const [collapsed, setCollapsed] = useState(false);
 
-  // restore
   useEffect(() => {
     try {
       const o = localStorage.getItem(OPEN_KEY);
       if (o) {
         const parsed = JSON.parse(o) || {};
-        // ถ้ายังไม่เคยมีสถานะของ employee ให้เปิดเป็นค่าเริ่มต้น
         if (!(EMPLOYEE_KEY in parsed)) parsed[EMPLOYEE_KEY] = true;
         setOpen(parsed);
       } else {
-        // ครั้งแรก: เปิดเฉพาะ employee
         setOpen({ [EMPLOYEE_KEY]: true });
       }
       const c = localStorage.getItem(COLLAPSE_KEY);
       if (c) setCollapsed(c === "1");
     } catch {}
   }, []);
-  // persist
+
   useEffect(() => {
     try {
       localStorage.setItem(OPEN_KEY, JSON.stringify(open));
@@ -208,51 +376,127 @@ export default function Sidebar() {
     } catch {}
   }, [open, collapsed]);
 
-  // กรองสิทธิ์ระดับบนสุด
   const items = useMemo(() => {
     return menuConfig
       .filter((n) => canSee(n.roles, role))
       .map((n) =>
         n.type === "group" && n.children
           ? { ...n, children: n.children.filter((c) => canSee(c.roles, role)) }
-          : n
+          : n,
       );
   }, [role]);
 
   return (
     <aside
-      className={`hidden md:block shrink-0 border-r border-white/10 bg-[#0F172B] transition-[width] duration-200 ${
-        collapsed ? "w-16" : "w-72"
-      }`}
+      className="hidden md:block shrink-0"
+      style={{
+        width: collapsed ? "64px" : "256px",
+        background: "linear-gradient(180deg, #0D1B2A 0%, #0a1628 100%)",
+        borderRight: `1px solid ${BORDER}`,
+        transition: "width 200ms cubic-bezier(0.4,0,0.2,1)",
+      }}
     >
-      <div className="h-dvh sticky top-0 flex flex-col">
-        {/* Brand + collapse */}
-        <div className="h-16 flex items-center justify-between px-3 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-indigo-500/20 grid place-items-center">
-              <span className="text-indigo-300 font-bold">9</span>
+      <div
+        style={{
+          height: "100dvh",
+          position: "sticky",
+          top: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* ── Brand area with subtle blue glow ────────────────── */}
+        <div
+          style={{
+            height: "64px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: collapsed ? "center" : "space-between",
+            padding: "0 12px",
+            borderBottom: `1px solid ${BORDER}`,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          {/* Blue glow radial */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: "radial-gradient(ellipse at top, rgba(0,92,255,0.15) 0%, transparent 60%)",
+            }}
+          />
+
+          {/* Logo + text (hidden when collapsed) */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              position: "relative",
+              zIndex: 1,
+              cursor: collapsed ? "pointer" : "default",
+            }}
+            onClick={collapsed ? () => setCollapsed(false) : undefined}
+            title={collapsed ? "Expand sidebar" : undefined}
+          >
+            <div
+              style={{
+                height: "34px",
+                width: "34px",
+                borderRadius: "10px",
+                background: BLUE,
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+                boxShadow: "0 2px 10px rgba(0,92,255,0.35)",
+              }}
+            >
+              <span style={{ color: "#FFF", fontWeight: 800, fontSize: "15px" }}>9</span>
             </div>
             {!collapsed && (
-              <span className="text-lg font-semibold tracking-wide text-slate-100">
-                HRMS Portal
-              </span>
+              <div style={{ lineHeight: 1.2 }}>
+                <p style={{ color: "#FFFFFF", fontWeight: 600, fontSize: "13px", margin: 0 }}>
+                  HRMS Portal
+                </p>
+                <p style={{ color: SLATE, fontSize: "10px", margin: 0 }}>
+                  9Expert Training
+                </p>
+              </div>
             )}
           </div>
-          <button
-            onClick={() => setCollapsed((v) => !v)}
-            className="p-2 text-slate-300 hover:text-indigo-300 rounded-lg hover:bg-white/5"
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? (
-              <PanelRightOpen size={18} />
-            ) : (
-              <PanelLeftClose size={18} />
-            )}
-          </button>
+
+          {/* Toggle button — always visible */}
+          {!collapsed && (
+            <button
+              onClick={() => setCollapsed(true)}
+              title="Collapse sidebar"
+              style={{
+                padding: "6px",
+                borderRadius: "8px",
+                border: "none",
+                background: "transparent",
+                color: SLATE,
+                cursor: "pointer",
+                transition: "all 150ms ease",
+                position: "relative",
+                zIndex: 1,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = LIME;
+                e.currentTarget.style.background = "rgba(212,247,63,0.10)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = SLATE;
+                e.currentTarget.style.background = "transparent";
+              }}
+            >
+              <PanelLeftClose size={16} />
+            </button>
+          )}
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {/* ── Navigation ─────────────────────────────────────── */}
+        <nav style={{ flex: 1, overflowY: "auto", padding: "10px 8px" }}>
           {items.map((node) => {
             if (node.type === "link") {
               return (
@@ -264,11 +508,34 @@ export default function Sidebar() {
                 />
               );
             }
-
             return (
               <div key={node.key}>
-                {!collapsed && <p className={sectionTitleCls}>{node.label}</p>}
-                <ul className="space-y-1">
+                {!collapsed && (
+                  <>
+                    {/* Divider line before section label */}
+                    <div
+                      style={{
+                        height: "1px",
+                        background: BORDER,
+                        margin: "12px 10px 0",
+                      }}
+                    />
+                    <p
+                      style={{
+                        padding: "10px 10px 4px",
+                        fontSize: "10px",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        color: "rgba(128,138,149,0.7)",
+                        margin: 0,
+                      }}
+                    >
+                      {node.label}
+                    </p>
+                  </>
+                )}
+                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
                   {(node.children ?? []).map((child) => (
                     <RecursiveNode
                       key={child.key}
@@ -287,8 +554,49 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="p-3 border-t border-white/10 text-xs text-slate-400">
-          © {new Date().getFullYear()} | 9 EXPERT COMPANY LIMITED
+        {/* ── Footer ─────────────────────────────────────────── */}
+        <div
+          style={{
+            padding: collapsed ? "12px 0" : "12px 14px",
+            borderTop: "1px solid rgba(255,255,255,0.06)",
+            fontSize: "11px",
+            color: SLATE,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: collapsed ? "center" : "stretch",
+            gap: "8px",
+          }}
+        >
+          {collapsed ? (
+            <button
+              onClick={() => setCollapsed(false)}
+              title="Expand sidebar"
+              style={{
+                display: "grid",
+                placeItems: "center",
+                width: "36px",
+                height: "36px",
+                borderRadius: "8px",
+                border: "none",
+                background: "transparent",
+                color: SLATE,
+                cursor: "pointer",
+                transition: "all 150ms ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = LIME;
+                e.currentTarget.style.background = "rgba(212,247,63,0.10)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = SLATE;
+                e.currentTarget.style.background = "transparent";
+              }}
+            >
+              <PanelRightOpen size={16} />
+            </button>
+          ) : (
+            <span>{`\u00A9 ${new Date().getFullYear()} | 9 EXPERT CO., LTD.`}</span>
+          )}
         </div>
       </div>
     </aside>

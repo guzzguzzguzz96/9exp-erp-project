@@ -644,11 +644,11 @@ export default function EmployeeCreateForm() {
 
       {confirmOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-center">
-          <div className="w-full max-w-md rounded-2xl bg-[#0F172B] ring-1 ring-white/10 p-6">
-            <h3 className="text-lg font-semibold text-slate-100">
+          <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "#FFFFFF", border: "1px solid rgba(0,92,255,0.10)", boxShadow: "0 8px 32px rgba(13,27,42,0.15)" }}>
+            <h3 className="text-lg font-semibold" style={{ color: "#0D1B2A" }}>
               ยืนยันการบันทึก
             </h3>
-            <p className="text-sm text-slate-400 mt-2">
+            <p className="text-sm mt-2" style={{ color: "#808A95" }}>
               โปรดตรวจสอบความถูกต้องของข้อมูลพนักงานให้เรียบร้อยก่อนดำเนินการต่อ
             </p>
 
@@ -671,7 +671,8 @@ export default function EmployeeCreateForm() {
                 type="button"
                 onClick={() => setConfirmOpen(false)}
                 disabled={saving}
-                className="px-4 py-2 rounded-xl ring-1 ring-white/10 bg-white/5 hover:bg-white/10 text-slate-200"
+                className="px-4 py-2 rounded-xl"
+                style={{ background: "#F8FAFD", border: "1px solid #E2E8F0", color: "#334155" }}
               >
                 ยกเลิก
               </button>

@@ -35,9 +35,14 @@ export default function DepartmentsClient({ initialItems, canEdit = false }) {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search name, code, description..."
-          className="w-full rounded-xl bg-white/5 text-slate-200 placeholder:text-slate-500 border border-white/10 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+          className="w-full rounded-xl px-4 py-2.5 focus:outline-none"
+          style={{
+            background: "#FFFFFF",
+            border: "1px solid rgba(0,92,255,0.12)",
+            color: "#0D1B2A",
+          }}
         />
-        <Search className="absolute right-3 top-2.5 h-5 w-5 text-slate-500" />
+        <Search className="absolute right-3 top-2.5 h-5 w-5" style={{ color: "#808A95" }} />
       </div>
 
       {/* Grid */}
@@ -45,23 +50,29 @@ export default function DepartmentsClient({ initialItems, canEdit = false }) {
         {items.map((d) => (
           <li
             key={d._id}
-            className="rounded-2xl border border-white/10 bg-[#0F172B] p-4 hover:border-indigo-500/30 transition"
+            className="transition-all duration-200 hover:-translate-y-0.5"
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid rgba(0,92,255,0.10)",
+              borderRadius: "16px",
+              boxShadow: "0 2px 8px rgba(13,27,42,0.06)",
+              padding: "16px",
+            }}
           >
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span
                     className="inline-flex h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: d.color || "#6366f1" }}
+                    style={{ backgroundColor: d.color || "#005CFF" }}
                     aria-hidden
                   />
-                  <span className="text-slate-300 text-sm">{d.code}</span>
+                  <span style={{ color: "#808A95", fontSize: "13px" }}>{d.code}</span>
                 </div>
-                <h3 className="text-lg font-medium text-slate-100">
+                <h3 style={{ color: "#0D1B2A", fontWeight: 600, fontSize: "17px" }}>
                   {d.name}
                 </h3>
-                {/* จำนวนพนักงาน */}
-                <div className="text-xs text-slate-400">
+                <div style={{ color: "#808A95", fontSize: "13px" }}>
                   {Number(d._empCount ?? 0)}{" "}
                   {Number(d._empCount ?? 0) === 1 ? "person" : "people"}
                 </div>
@@ -70,7 +81,10 @@ export default function DepartmentsClient({ initialItems, canEdit = false }) {
               {canEdit && (
                 <Link
                   href={`/dashboard/hrm/departments/${d._id}/edit`}
-                  className="text-indigo-300 hover:text-indigo-200 text-sm"
+                  className="no-underline text-sm transition-colors duration-150"
+                  style={{ color: "#005CFF", fontWeight: 500 }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "#0D1B2A"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "#005CFF"; }}
                 >
                   Edit
                 </Link>
@@ -81,8 +95,16 @@ export default function DepartmentsClient({ initialItems, canEdit = false }) {
               {(d.allowLevels ?? d.allowedLevels ?? []).map((lv) => (
                 <span
                   key={lv}
-                  className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-300 ring-1 ring-white/10"
                   title={`Level ${lv}`}
+                  style={{
+                    background: "#F8FAFD",
+                    border: "1px solid rgba(0,92,255,0.12)",
+                    color: "#334155",
+                    borderRadius: "99px",
+                    fontSize: "11px",
+                    fontWeight: 500,
+                    padding: "2px 8px",
+                  }}
                 >
                   {LEVEL_LABEL[lv] ?? lv}
                 </span>
@@ -90,7 +112,7 @@ export default function DepartmentsClient({ initialItems, canEdit = false }) {
             </div>
 
             {d.description ? (
-              <p className="mt-3 text-sm text-slate-400 line-clamp-2">
+              <p className="mt-3 line-clamp-2" style={{ color: "#475569", fontSize: "13px", margin: 0, marginTop: "12px" }}>
                 {d.description}
               </p>
             ) : null}
@@ -99,7 +121,14 @@ export default function DepartmentsClient({ initialItems, canEdit = false }) {
 
         {items.length === 0 && (
           <li className="col-span-full">
-            <div className="rounded-xl border border-dashed border-white/10 p-10 text-center text-slate-400">
+            <div
+              className="p-10 text-center"
+              style={{
+                borderRadius: "12px",
+                border: "1px dashed rgba(0,92,255,0.15)",
+                color: "#808A95",
+              }}
+            >
               ไม่พบข้อมูลที่ค้นหา
             </div>
           </li>

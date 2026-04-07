@@ -315,7 +315,7 @@ export default function EmployeeEditForm({
             <div>
               <Label>แผนก</Label>
               <select
-                className="mt-1 w-full rounded-xl bg-slate-800 px-4 py-2.5 ring-1 ring-slate-700 text-white"
+                className="select-dark appearance-none mt-1 w-full"
                 value={selectedDepId}
                 onChange={(e) => {
                   setSelectedDepId(e.target.value);
@@ -334,7 +334,7 @@ export default function EmployeeEditForm({
             <div>
               <Label>ตำแหน่ง</Label>
               <select
-                className="mt-1 w-full rounded-xl bg-slate-800 px-4 py-2.5 ring-1 ring-slate-700 text-white"
+                className="select-dark appearance-none mt-1 w-full"
                 value={positionId}
                 onChange={(e) => setPositionId(e.target.value)}
               >
@@ -380,7 +380,7 @@ export default function EmployeeEditForm({
             <div>
               <Label>เพศ</Label>
               <select
-                className="mt-1 w-full rounded-xl bg-slate-800 px-4 py-2.5 ring-1 ring-slate-700 text-white"
+                className="select-dark appearance-none mt-1 w-full"
                 value={gender}
                 onChange={(e) => setGender(e.target.value)}
               >
@@ -512,7 +512,7 @@ export default function EmployeeEditForm({
               <div className="mt-3">
                 <Label>สิทธิ์ (Role)</Label>
                 <select
-                  className="mt-1 w-full rounded-xl bg-slate-800 px-4 py-2.5 ring-1 ring-slate-700 text-white"
+                  className="select-dark appearance-none mt-1 w-full"
                   value={userRole}
                   onChange={(e) => setUserRole(e.target.value)}
                   disabled={!canAdmin}
@@ -578,7 +578,7 @@ export default function EmployeeEditForm({
 
 /* ---- tiny UI helpers ---- */
 function Label({ children }) {
-  return <label className="text-sm text-slate-300">{children}</label>;
+  return <label className="text-sm" style={{ color: "#808A95" }}>{children}</label>;
 }
 function Input({ label, value, onChange, type = "text", readOnly = false }) {
   return (
@@ -589,9 +589,13 @@ function Input({ label, value, onChange, type = "text", readOnly = false }) {
         value={value ?? ""}
         readOnly={readOnly}
         onChange={(e) => onChange?.(e.target.value)}
-        className={`mt-1 w-full rounded-xl bg-white/5 px-4 py-2.5 ring-1 ${
-          readOnly ? "ring-white/10 opacity-70" : "ring-white/10"
-        } text-slate-100`}
+        className="mt-1 w-full rounded-xl px-4 py-2.5"
+        style={{
+          background: "#FFFFFF",
+          color: "#0D1B2A",
+          border: "1px solid #E2E8F0",
+          opacity: readOnly ? 0.7 : 1,
+        }}
       />
     </div>
   );

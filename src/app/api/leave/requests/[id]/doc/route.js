@@ -1,173 +1,223 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongoose";
 import LeaveRequest from "@/lib/models/LeaveRequest";
 import Employee from "@/lib/models/Employee";
+import Department from "@/lib/models/Department";
 
-export const dynamic = "force-dynamic";
+// ---------- helpers ----------
+const safe = (v, d = "-") =>
+  v === null || v === undefined || v === "" ? d : v;
 
-// helper: format date range th-TH
-function fmtD(d) {
+function fmtDate(d) {
   try {
-    return new Date(d).toLocaleDateString("th-TH", {
-      day: "2-digit",
-      month: "short",
+    if (!d) return "-";
+    const z = new Date(d);
+    if (isNaN(z.getTime())) return "-";
+    return z.toLocaleDateString(undefined, {
       year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     });
   } catch {
     return "-";
   }
 }
 
-function statusBadge(status) {
-  const map = {
-    pending_hod: { text: "pending_hod", bg: "#F59E0B" }, // amber-500
-    pending_hr:  { text: "pending_hr",  bg: "#EAB308" }, // yellow-500
-    approved:    { text: "approved",    bg: "#10B981" }, // emerald-500
-    rejected:    { text: "rejected",    bg: "#EF4444" }, // red-500
-  };
-  const it = map[status] || { text: status || "-", bg: "#64748B" }; // slate-500
-  return `<span style="display:inline-block;padding:4px 10px;border-radius:999px;color:#fff;background:${it.bg};font-size:12px">${it.text}</span>`;
+function findSig(arr = [], key) {
+  // รองรับชื่อ who ได้หลายแบบ เช่น employee/requester, hod/head, hr
+  const k = String(key || "").toLowerCase();
+  return (
+    arr.find((s) => new RegExp(`\\b${k}\\b`, "i").test(s?.who || "")) ||
+    (k === "employee" || k === "requester"
+      ? arr.find((s) => !/hod|head|hr/i.test(s?.who || ""))
+      : null)
+  );
 }
 
+function sigBox(title, sig) {
+  const img = sig?.dataUrl
+    ? `<img src="${sig.dataUrl}" style="max-height:80px;max-width:100%;object-fit:contain;" />`
+    : "—";
+  const by = sig?.byName || sig?.by || "";
+  const at = fmtDate(sig?.at);
+  return `
+  <td style="width:33%;vertical-align:top;padding:12px;border:1px solid #e5e7eb;border-radius:8px;">
+    <div style="font-weight:600;margin-bottom:8px;">${title}</div>
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;height:110px;display:flex;align-items:center;justify-content:center;">
+      ${img}
+    </div>
+    <div style="color:#6b7280;font-size:12px;margin-top:6px;">${safe(by)}</div>
+    <div style="color:#6b7280;font-size:12px;">${
+      at !== "-" ? `ลงวันที่ ${at}` : "—"
+    }</div>
+  </td>`;
+}
+
+// ---------- route ----------
 export async function GET(req, ctx) {
-  await dbConnect();
+  try {
+    await dbConnect();
 
-  // 💡 Next.js 15: params ต้อง await
-  const { id } = await ctx.params;
+    // รองรับ Next 13/14: params บางเวอร์ชันเป็น promise
+    const { id } = (await ctx?.params) || ctx?.params || {};
+    if (!id) {
+      return NextResponse.json({ message: "Missing id" }, { status: 400 });
+    }
 
-  const doc = await LeaveRequest.findById(id).lean();
-  if (!doc) {
-    return NextResponse.json({ message: "Not found" }, { status: 404 });
-  }
+    const doc = await LeaveRequest.findById(id).lean();
+    if (!doc) {
+      return NextResponse.json({ message: "Not found" }, { status: 404 });
+    }
 
-  const emp = await Employee.findById(doc.employeeId)
-    .select("firstName lastName position department")
-    .lean();
+    // ดึงข้อมูลพนักงาน + แผนก (กัน field ว่าง)
+    const emp =
+      (doc.employeeId && (await Employee.findById(doc.employeeId).lean())) ||
+      {};
+    const dept =
+      (emp?.departmentId &&
+        (await Department.findById(emp.departmentId).lean())) ||
+      {};
 
-  const origin = req.nextUrl.origin;
-  // 🖼 เปลี่ยนชื่อไฟล์โลโก้ได้ตามที่คุณวางใน /public
-  const logoUrl = `${origin}/logo-9expert.png`;
+    // เซ็นแต่ละขั้น
+    const sigs = Array.isArray(doc.signatures) ? doc.signatures : [];
+    const sigEmployee = findSig(sigs, "employee") || findSig(sigs, "requester");
+    const sigHoD = findSig(sigs, "hod") || findSig(sigs, "head");
+    const sigHR = findSig(sigs, "hr");
 
-  const empName = [emp?.firstName, emp?.lastName].filter(Boolean).join(" ") || "-";
-  const position = emp?.position || "-";
-  const dept = emp?.department || "-";
-  const typeCode = doc?.typeCode || "-";
-  const reason = doc?.reason || "-";
-  const notes = doc?.notes || "-";
-  const start = fmtD(doc?.startDate);
-  const end = fmtD(doc?.endDate);
-  const days = doc?.durationDays ?? "-";
-  const createdAt = fmtD(doc?.createdAt);
-  const badge = statusBadge(doc?.status);
+    const statusLabel =
+      doc.status === "approved"
+        ? `<span style="background:#10b98122;color:#059669;padding:2px 8px;border-radius:9999px;">Approved</span>`
+        : doc.status === "rejected"
+        ? `<span style="background:#ef444422;color:#dc2626;padding:2px 8px;border-radius:9999px;">Rejected</span>`
+        : `<span style="background:#f59e0b22;color:#b45309;padding:2px 8px;border-radius:9999px;">${safe(
+            doc.status
+          )}</span>`;
 
-  const sigDataUrl = doc?.signatures?.[0]?.dataUrl || "";
+    const rows = [
+      [
+        "พนักงาน",
+        [emp.firstName, emp.lastName].filter(Boolean).join(" ") || "-",
+      ],
+      ["ประเภทลา", safe(doc.typeCode)],
+      ["ตำแหน่ง", safe(emp.position)],
+      ["แผนก", safe(dept.name)],
+      ["ช่วงวันลา", `${fmtDate(doc.startDate)} – ${fmtDate(doc.endDate)}`],
+      ["จำนวนวัน", safe(doc.durationDays, 0)],
+      ["เหตุผล", safe(doc.reason)],
+      ["บันทึกเพิ่มเติม", safe(doc.notes)],
+      ["สถานะ", statusLabel],
+      ["สร้างเมื่อ", fmtDate(doc.createdAt)],
+      ["แก้ไขล่าสุด", fmtDate(doc.updatedAt)],
+    ];
 
-  const html = /* html */ `<!doctype html>
+    const html = `<!doctype html>
 <html lang="th">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>HRMS • Leave Request</title>
   <style>
-    :root { color-scheme: light; }
-    * { box-sizing: border-box; }
-    body { margin:0; padding:32px; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Thai", "Noto Sans", "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji"; background:#f8fafc; color:#0f172a; }
-    .container { max-width: 980px; margin:0 auto; }
-    .card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; }
-    .row { display:grid; grid-template-columns: 220px 1fr; border-top:1px solid #e2e8f0; }
-    .row:first-child { border-top:0; }
-    .cell-h { background:#f8fafc; padding:12px 16px; font-weight:600; color:#1f2937; }
-    .cell { padding:12px 16px; color:#334155; }
-
-    .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-    .brand { display:flex; align-items:center; gap:16px; }
-    .brand img { height:40px; }
-    .brand h1 { font-size:20px; margin:0; color:#0f172a; }
-
-    .meta { font-size:12px; color:#64748b; margin:8px 0 24px; }
-    .two { display:grid; grid-template-columns: 1fr 380px; gap:16px; align-items:stretch; }
-    .sig-box { height:180px; border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc; display:flex; align-items:center; justify-content:center; }
-    .sig-img { max-height:160px; max-width:100%; }
-    .sig-name { text-align:center; margin-top:8px; color:#475569; }
-
-    .section-title { font-weight:700; font-size:14px; color:#0f172a; margin:0 0 8px; }
-    .footer { display:flex; justify-content:space-between; margin-top:16px; color:#94a3b8; font-size:12px; }
-
-    .btn { appearance:none; border:1px solid #c7d2fe; background:#4f46e5; color:#fff; padding:8px 12px; border-radius:10px; font-size:13px; cursor:pointer; }
-    .btn:active { transform: translateY(1px); }
-    .btn.secondary { background:#fff; color:#1f2937; border-color:#e2e8f0; }
-    .pill { font-size:12px; color:#475569; background:#eef2ff; border:1px solid #c7d2fe; border-radius:999px; padding:2px 10px; }
-
-    @media print {
-      .no-print { display:none !important; }
-      body { background:#fff; padding:0; }
-      .container { max-width:none; margin:0; }
-      .card { border:0; border-radius:0; }
+    :root { color-scheme: light dark; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Thai", "Noto Sans", "Helvetica Neue", Arial, "Sukhumvit Set", "Tahoma", sans-serif; background:#f8fafc; color:#0f172a; padding:24px; }
+    .card { max-width:880px; margin:0 auto; background:#fff; border:1px solid #e5e7eb; border-radius:16px; overflow:hidden; }
+    .head { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #e5e7eb; }
+    .brand { display:flex; align-items:center; gap:10px; }
+    .brand b { font-weight:700; }
+    table.meta { width:100%; border-collapse:collapse; }
+    table.meta tr td { padding:10px 14px; border-top:1px solid #f1f5f9; vertical-align:top; }
+    table.meta tr td:first-child { width:180px; color:#475569; }
+    .sec { padding:18px 20px; }
+    .sig-wrap { width:100%; border-collapse:separate; border-spacing:12px; }
+    @media (prefers-color-scheme: dark) {
+      body { background:#0b1220; color:#e5e7eb; }
+      .card { background:#0f172a; border-color:#334155; }
+      .head { border-color:#334155; }
+      table.meta tr td { border-color:#1f2937; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
+  <div class="card">
+    <div class="head">
       <div class="brand">
-        <img src="${logoUrl}" alt="Company Logo" onerror="this.style.display='none'"/>
-        <h1>HRMS • Leave Request</h1>
+        <img src="https://dummyimage.com/24x24/111/fff.png&text=9" width="24" height="24" alt="logo" />
+        <b>HRMS • Leave Request</b>
       </div>
-      <div class="no-print" style="display:flex; gap:8px;">
-        <button class="btn secondary" onclick="location.reload()">รีเฟรช</button>
-        <button class="btn" onclick="window.print()">ดาวน์โหลด PDF</button>
-      </div>
+      <div style="color:#64748b;font-size:12px;">เลขที่คำขอ: ${String(
+        doc._id
+      )}</div>
     </div>
 
-    <div class="meta">
-      เลขที่เอกสาร: <span class="pill">${id}</span>
+    <div class="sec">
+      <table class="meta">
+        ${rows
+          .map(
+            ([k, v]) => `<tr>
+              <td>${k}</td>
+              <td>${typeof v === "string" ? v : v}</td>
+            </tr>`
+          )
+          .join("")}
+      </table>
     </div>
 
-    <div class="card">
-      <!-- ข้อมูลคำขอ -->
-      <div class="row"><div class="cell-h">พนักงาน</div><div class="cell">${empName}</div></div>
-      <div class="row"><div class="cell-h">ประเภทลา</div><div class="cell">${typeCode}</div></div>
-      <div class="row"><div class="cell-h">ตำแหน่ง</div><div class="cell">${position}</div></div>
-      <div class="row"><div class="cell-h">แผนก</div><div class="cell">${dept}</div></div>
-      <div class="row"><div class="cell-h">ช่วงวันลา</div><div class="cell">${start} – ${end}</div></div>
-      <div class="row"><div class="cell-h">จำนวนวัน</div><div class="cell">${days}</div></div>
-      <div class="row"><div class="cell-h">เหตุผล</div><div class="cell">${reason}</div></div>
-      <div class="row"><div class="cell-h">บันทึกเพิ่มเติม</div><div class="cell">${notes}</div></div>
-      <div class="row"><div class="cell-h">สถานะ</div><div class="cell">${badge}</div></div>
-      <div class="row"><div class="cell-h">สร้างเมื่อ</div><div class="cell">${createdAt}</div></div>
-    </div>
-
-    <div class="two" style="margin-top:16px;">
-      <!-- ลายเซ็น -->
-      <div class="card" style="padding:16px;">
-        <div class="section-title">ผู้ยื่นคำขอ</div>
-        <div class="sig-box">
-          ${
-            sigDataUrl
-              ? `<img class="sig-img" src="${sigDataUrl}" alt="signature" />`
-              : `<span style="color:#94a3b8">ไม่มีลายเซ็น</span>`
-          }
-        </div>
-        <div class="sig-name">${empName}</div>
-      </div>
-
-      <!-- ช่องลงนามอนุมัติ -->
-      <div class="card" style="padding:16px;">
-        <div class="section-title">สำหรับการอนุมัติ</div>
-        <div class="row"><div class="cell-h">หัวหน้า (HoD)</div><div class="cell">—</div></div>
-        <div class="row"><div class="cell-h">HR</div><div class="cell">—</div></div>
-      </div>
-    </div>
-
-    <div class="footer">
-      <div>เอกสารชุดนี้สร้างจากระบบ HRMS</div>
-      <div>เปิดผ่าน <span class="pill">/api/leave/requests/[id]/doc</span></div>
+    <div class="sec">
+      <div style="font-weight:600;margin-bottom:8px;">สำหรับการอนุมัติ</div>
+      <table class="sig-wrap">
+        <tr>
+          ${sigBox(
+            "ผู้ยื่นคำขอ",
+            sigEmployee && {
+              dataUrl: sigEmployee.signatureDataUrl || sigEmployee.dataUrl,
+              byName:
+                sigEmployee.byName ||
+                [emp.firstName, emp.lastName].filter(Boolean).join(" "),
+              at: sigEmployee.signedAt || sigEmployee.at,
+            }
+          )}
+          ${sigBox(
+            "หัวหน้า (HoD)",
+            sigHoD && {
+              dataUrl: sigHoD.signatureDataUrl || sigHoD.dataUrl,
+              byName: sigHoD.byName || sigHoD.by || "-",
+              at: sigHoD.signedAt || sigHoD.at,
+            }
+          )}
+          ${sigBox(
+            "HR",
+            sigHR && {
+              dataUrl: sigHR.signatureDataUrl || sigHR.dataUrl,
+              byName: sigHR.byName || sigHR.by || "-",
+              at: sigHR.signedAt || sigHR.at,
+            }
+          )}
+        </tr>
+      </table>
     </div>
   </div>
 </body>
 </html>`;
 
-  return new Response(html, {
-    headers: { "content-type": "text/html; charset=utf-8" },
-  });
+    return new Response(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store, max-age=0",
+      },
+    });
+  } catch (e) {
+    // แสดง error อ่านง่าย ๆ กันหน้าโล่ง
+    const html = `<!doctype html><meta charset="utf-8"><pre style="padding:20px;color:#b91c1c;background:#fff5f5;border:1px solid #fecaca;border-radius:12px;font:14px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">${
+      (e && (e.stack || e.message)) || e
+    }</pre>`;
+    return new Response(html, {
+      status: 500,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
 }
